@@ -11,7 +11,7 @@
 
 namespace py = pybind11;
 
-std::string getSDKVersion() {
+std::string getSDKVersionHash() {
     // Replace parenthesis and space in version string so
     // we can easily use the results as a variable in a
     // Makefile and on the compiler command line:
@@ -24,8 +24,8 @@ std::string getSDKVersion() {
     return version;
 }
 
-PYBIND11_MODULE(sdk_version_lib, m) {
-  m.def("sdk_version", &getSDKVersion, "Graphcore SDK version hash (`poplar::packageHash`)");
+PYBIND11_MODULE(sdk_version_hash_lib, m) {
+  m.def("sdk_version_hash", &getSDKVersionHash, "Graphcore SDK version hash (`poplar::packageHash`)");
 };
 
 // -------------- cppimport --------------
