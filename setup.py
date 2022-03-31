@@ -56,7 +56,7 @@ setup(
     package_data={
         'examples_utils':
         # Paths need to be relative to `examples_utils/` folder
-        [os.path.join(*Path(f).parts[1:]) for f in glob('**/*.py', recursive=True)] +
-        [os.path.join(*Path(f).parts[1:]) for f in glob('**/*.cpp', recursive=True)]
+        [os.path.join(*Path(f).parts[1:]) for f in glob('examples_utils/**/*.py', recursive=True)] +
+        [os.path.join(*Path(f).parts[1:]) for f in glob('examples_utils/**/*.cpp', recursive=True)]
     },
 )
