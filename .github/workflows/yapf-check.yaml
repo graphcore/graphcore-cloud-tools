@@ -1,0 +1,16 @@
+name: yapf python linter check
+on:
+  pull_request:
+  push:
+    branches: [master]
+jobs:
+  Explore-GitHub-Actions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v1
+      - name: Install yapf
+        run: pip install yapf==0.27.0 toml
+      - name: Run yapf check
+        # yapf gives a non-zero exit code if not formatted correctly
+        run: yapf --recursive --diff . && echo "yapf passed." || { echo "yapf requires changes. Run 'make lint'."; exit 2; }
