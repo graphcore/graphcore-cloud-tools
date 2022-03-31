@@ -26,11 +26,7 @@ def read(*paths, **kwargs):
 
 
 def read_requirements(path):
-    return [
-        line.strip()
-        for line in read(path).split("\n")
-        if not line.startswith(('"', "#", "-"))
-    ]
+    return [line.strip() for line in read(path).split("\n") if not line.startswith(('"', "#", "-"))]
 
 
 setup(
@@ -57,5 +53,10 @@ setup(
     install_requires=read_requirements("requirements.txt"),
     extras_require={"dev": read_requirements("requirements-dev.txt")},
     packages=['examples_utils'],
-    package_data={'examples_utils': [os.path.join(*Path(f).parts[1:]) for f in glob('**/*.cpp', recursive=True)]},
+    package_data={
+        'examples_utils':
+        # Paths need to be relative to `examples_utils/` folder
+        [os.path.join(*Path(f).parts[1:]) for f in glob('**/*.py', recursive=True)] +
+        [os.path.join(*Path(f).parts[1:]) for f in glob('**/*.cpp', recursive=True)]
+    },
 )
