@@ -1,0 +1,4 @@
+# Copyright (c) 2022 Graphcore Ltd. All rights reserved.
+
+resnet8_test:
+  model-name: cifar_resnet8
