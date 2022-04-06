@@ -9,7 +9,7 @@ from cppimport.checksum import is_checksum_valid
 from cppimport.importer import get_module_name, get_extension_suffix, setup_module_data, template_and_build
 from filelock import FileLock, Timeout
 
-from examples_utils import sdk_version_hash
+from examples_utils.sdk_version_hash import sdk_version_hash
 import os
 import logging
 
