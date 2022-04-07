@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import hashlib
 import pathlib
-from examples_utils.load_lib.load_lib import load_lib, get_binary_path
+from examples_utils.load_lib_utils.load_lib_utils import load_lib, get_binary_path
 
 from multiprocessing import Process
 
@@ -93,7 +93,7 @@ def test_custom_ops_sdk_change():
     binary_hash = md5_file_hash(binary_path)
 
     # Test loading again when sdk has changed (monkey patch `sdk_version_hash` function)
-    with patch('examples_utils.load_lib.load_lib.sdk_version_hash', new=lambda: 'patch-version'):
+    with patch('examples_utils.load_lib_utils.sdk_version_hash', new=lambda: 'patch-version'):
         load_lib(cpp_file.name)
         binary_path_new = get_binary_path(cpp_file.name)
         assert 'patch-version' in binary_path_new, 'Monkey patch has not worked. Is the path correct?'
