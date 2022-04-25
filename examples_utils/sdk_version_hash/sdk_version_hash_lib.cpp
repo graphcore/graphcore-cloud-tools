@@ -25,7 +25,7 @@ std::string getSDKVersionHash() {
 }
 
 PYBIND11_MODULE(sdk_version_hash_lib, m) {
-  m.def("sdk_version_hash", &getSDKVersionHash, "Graphcore SDK version hash (`poplar::packageHash`)");
+  m.def("sdk_version_hash", &getSDKVersionHash, "Graphcore SDK version hash (sanitised `poplar::packageHash`)");
 };
 
 // -------------- cppimport --------------

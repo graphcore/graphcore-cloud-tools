@@ -1,43 +1,14 @@
 # Copyright (c) 2022 Graphcore Ltd. All rights reserved.
-import shutil
-from time import sleep, time
 
 import ctypes
-from contextlib import suppress
-
-from cppimport.checksum import is_checksum_valid
-from cppimport.importer import get_module_name, get_extension_suffix, setup_module_data, template_and_build
-from filelock import FileLock, Timeout
-
-from examples_utils.sdk_version_hash import sdk_version_hash
 import os
 import logging
+from examples_utils.load_lib_utils.cppimport_backports import _check_first_line_contains_cppimport
+from examples_utils.load_lib_utils.cppimport_safe import cppimport_build_safe
 
 __all__ = ['load_lib']
 
-
-def get_module_data(filepath: str):
-    """Create module data dictionary that `cppimport` uses"""
-    fullname = os.path.splitext(os.path.basename(filepath))[0]
-    return setup_module_data(fullname, filepath)
-
-
-def get_module_data_new_path(filepath: str):
-    """Create module data dictionary that `cppimport` uses but with new binary path (with GC-SDK version)"""
-    module_data = get_module_data(filepath)
-    binary_path = get_binary_path(filepath)
-    module_data['ext_path'] = binary_path
-    module_data['ext_name'] = os.path.basename(binary_path)
-    return module_data
-
-
-def get_binary_path(filepath: str) -> str:
-    """Binary path that includes GraphCore SDK version hash (derived from `cppimport` binary path).
-    e.g.`foo.gc-sdk-5f7a58bf8e.cpython-36m-x86_64-linux-gnu.so`"""
-    fullname = os.path.splitext(os.path.basename(filepath))[0]
-    file_name = get_module_name(fullname) + f'.gc-sdk-{sdk_version_hash()}' + get_extension_suffix()
-    path = os.path.join(os.path.dirname(filepath), file_name)
-    return path
+settings = {'file_exts': ('.cpp', )}
 
 
 def load_lib(filepath: str, timeout: int = 5 * 60):
@@ -69,50 +40,46 @@ def load_lib(filepath: str, timeout: int = 5 * 60):
     file.
 
     Parameters:
-    filepath (str): File path of the C++ source file
-    timeout (int): Timeout time if cannot obtain lock to compile the source
+        filepath (str): File path of the C++ source file
+        timeout (int): Timeout time if cannot obtain lock to compile the source
 
     Returns:
-    lib: library instance. Output of `ctypes.cdll.LoadLibrary`
+        lib: library instance. Output of `ctypes.cdll.LoadLibrary`
     """
-    filepath = os.path.abspath(filepath)  # Build tools can have issues if relative path
-    if not os.path.exists(filepath):
-        raise FileNotFoundError(f"Custom op file does not exist: {filepath}")
-
-    binary_path = get_binary_path(filepath)
-    lock_path = binary_path + '.lock'
-
-    module_data = get_module_data(filepath)
-    module_data_new_path = get_module_data_new_path(filepath)
-
-    t = time()
-
-    # Need to check:
-    # 1) binary path exists - otherwise the binary could be compiled against a different SDK
-    # 2) binary checksum - otherwise the c++ source may of changed and need to recompile
-    while not (os.path.exists(binary_path) and is_checksum_valid(module_data_new_path)) and time() - t < timeout:
-        try:
-            with FileLock(lock_path, timeout=1):
-                if os.path.exists(binary_path) and is_checksum_valid(module_data_new_path):
-                    break
-                template_and_build(filepath, module_data)
-                cppimport_binary_path = module_data['ext_path']
-                shutil.copy(cppimport_binary_path, binary_path)
-                os.remove(cppimport_binary_path)
-                logging.debug(f'{os.getpid()}: Built binary')
-        except Timeout:
-            logging.debug(f'{os.getpid()}: Could not obtain lock')
-            sleep(1)
-
-    if not (os.path.exists(binary_path) and is_checksum_valid(module_data_new_path)):
-        raise Exception(
-            f'Could not compile binary as lock already taken and timed out. Lock file will be deleted: {lock_path}')
-
-    if os.path.exists(lock_path):
-        with suppress(OSError):
-            os.remove(lock_path)
-
+    module_data_new_path = cppimport_build_safe(filepath=filepath, timeout=timeout, sdk_version_check=True)
+    binary_path = module_data_new_path['ext_path']
     lib = ctypes.cdll.LoadLibrary(binary_path)
     logging.debug(f'{os.getpid()}: Loaded binary')
 
     return lib
+
+
+def load_lib_all(dir_path: str, timeout: int = 5 * 60, load: bool = True):
+    """
+    Recursively search the directory `dir_path` and use `load_lib` to build and load eligible files.
+
+    Eligible files have a `cpp` file extension and the first line contains the comment `\\ cppimport`.
+
+    Args:
+        dir_path: Path of directory to start search for files to compile
+        timeout: Timeout of `load_lib` compile
+        load: If True will load the libs and return, otherwise just compile
+
+    Returns:
+        libs: If `load==True` return a list of tuples (path, lib) otherwise just a list of paths of compiled files
+    """
+    libs = []
+    for directory, _, files in os.walk(dir_path):
+        for file in files:
+            if (not file.startswith(".") and os.path.splitext(file)[1] in settings["file_exts"]):
+                full_path = os.path.join(directory, file)
+                if _check_first_line_contains_cppimport(full_path):
+                    if load:
+                        lib = load_lib(filepath=full_path, timeout=timeout)
+                        libs += [(full_path, lib)]
+                    else:
+                        cppimport_build_safe(filepath=full_path, timeout=timeout, sdk_version_check=True)
+                        libs += [full_path]
+                    logging.info(f'Built: {full_path}')
+
+    return libs
