@@ -3,6 +3,8 @@
 import argparse
 import sys
 
+from examples_utils.benchmarks.run_benchmarks import benchmarks_parser, run_benchmarks
+from examples_utils.benchmarks.logging_utils import configure_logger
 from examples_utils.load_lib_utils.cli import load_lib_build_parser, load_lib_builder_run
 from examples_utils.load_lib_utils.cppimport_backports import _run_from_commandline_argparse, _run_from_commandline_run
 
@@ -20,12 +22,19 @@ def main(raw_args):
         'cppimport_build', description='Backported from cppimport. Equivalent to `python3 -m cppimport build`')
     _run_from_commandline_argparse(cppimport_build_subparser)
 
+    benchmarks_subparser = subparsers.add_parser(
+        'benchmark', description="Run applications benchmarks from the application's root directory.")
+    benchmarks_parser(benchmarks_subparser)
+
     args = parser.parse_args(raw_args[1:])
 
     if args.subparser == 'load_lib_build':
         load_lib_builder_run(args)
     elif args.subparser == 'cppimport_build':
         _run_from_commandline_run(args)
+    elif args.subparser == 'benchmark':
+        configure_logger(args)
+        run_benchmarks(args)
     else:
         raise Exception()
 
