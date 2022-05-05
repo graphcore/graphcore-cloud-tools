@@ -11,20 +11,20 @@ Applications which have been rigourously tested will include benchmarks (usually
 
 2. Follow the installation and setup guide for the application you want to benchmark, provided in their respective READMEs
 
-3. run `pip install -r requirements.txt` in this directory
+3. run `pip install -e .` in this directory
 
 ## Usage
-Interacting with benchmarking is all done through the `run_benchmarks.py` script. To run a specific benchmark, provide a path to the yaml file containing the benchmark and the name of the benchmark itself:
+Interacting with benchmarking is all done through the examples_utils module. To run a specific benchmark, provide a path to the yaml file containing the benchmark and the name of the benchmark itself:
 ```
-python3 run_benchmarks.py --spec <PATH_TO_YAML> --benchmark <BENCHMARK_NAME>
+python3 -m examples_utils benchmark --spec <PATH_TO_YAML> --benchmark <BENCHMARK_NAME>
 ```
 And the script will do some setup, run the benchmark, and collect + post-process outputs into logs, normally written to the cwd.
 
 Some examples:
 ```
-python3 run_benchmarks.py --spec /path/to/application/benchmarks.yml
-python3 run_benchmarks.py --spec /path/to/application/benchmarks.yml --benchmark benchmark_1 benchmark_2
-python3 run_benchmarks.py --spec /path/to/application/benchmarks.yml /path/to/another/application/benchmarks.yml
+python3 -m examples_utils benchmark --spec /path/to/application/benchmarks.yml
+python3 -m examples_utils benchmark --spec /path/to/application/benchmarks.yml --benchmark benchmark_1 benchmark_2
+python3 -m examples_utils benchmark --spec /path/to/application/benchmarks.yml /path/to/another/application/benchmarks.yml
 ```
 
 ## Other functionality
@@ -57,6 +57,7 @@ This script is a reduction and refactor of the scripts available in ce_benchmark
 ## Changelong
 07/04/22 - Initial commits
 28/04/22 - Post-review cleanup and documenting
+03/05 - Modularising and adding to examples_utils
 
 ## Future work plans
 - Adding more functionality from ce_benchmarks/test automation repos to run_benchmarks
