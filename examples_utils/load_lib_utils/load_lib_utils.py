@@ -6,9 +6,13 @@ import logging
 from examples_utils.load_lib_utils.cppimport_backports import _check_first_line_contains_cppimport
 from examples_utils.load_lib_utils.cppimport_safe import cppimport_build_safe
 
-__all__ = ['load_lib']
+__all__ = ['load_lib', 'build_lib']
 
 settings = {'file_exts': ('.cpp', )}
+
+
+def build_lib(filepath: str, timeout: int = 5 * 60):
+    return cppimport_build_safe(filepath=filepath, timeout=timeout, sdk_version_check=True)
 
 
 def load_lib(filepath: str, timeout: int = 5 * 60):
