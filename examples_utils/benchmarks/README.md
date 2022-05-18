@@ -32,18 +32,20 @@ In addition to the logs and metrics already recorded, there are a few other feat
 
 Looking at the output of script with the `--help` argument:
 ```
---spec SPEC [SPEC ...]
+--spec SPEC [SPEC ...] (required)
     Yaml files with benchmark spec
 --benchmark BENCHMARK [BENCHMARK ...]
     List of benchmark ids to run
---logdir LOGDIR
-    Folder to place log files
 --compile-only
     Enable compile only options in compatible models
 --ignore-wandb
     Ignore any wandb commands
+--logdir LOGDIR
+    Folder to place log files
 --logging {DEBUG,INFO,ERROR,CRITICAL,WARNING}
     Specify the logging level
+--profile
+    Enable profiling for the benchmarks, setting the appropriate environment variables and storing profiling reports in the cwd
 --timeout TIMEOUT
     Maximum time allowed for any of the benchmarks/variants (in seconds)
 ```
@@ -52,12 +54,13 @@ Points to note are:
 - Multiple values can be passed to the `--spec` argument, either as multiple paths or as a wildcard expression to a whole dir containing yaml files (only the yaml files will be read by the script)
 - The `--benchmark` argument is not required, and when not provided, all benchmarks within the yaml files provided in the `--spec` argument will be run/evaluated
 - Multiple benchmarks can be passed to the `--benchmark` argument and they will be run in the order provided
+- When profiling, the popvision profile is saved in the current working directory (this will be the application directory where the benchmarks are being run) and `POPLAR_ENGINE_OPTIONS` is given: `"autoReport.all": "true"` and `"autoReport.outputSerializedGraph": "false"`. This is to enable all standard profiling functionality but avoiding making the profile too large.
 
-This script is a reduction and refactor of the scripts available in ce_benchmarking, however of the functionality that is kept, all arguments/usage is equivalent to how it would be used in the original. In other words, transition to using the full functionality with the original scripts in ce_benchmarking, if you choose to do so, should be seamless.
 ## Changelong
 07/04/22 - Initial commits
 28/04/22 - Post-review cleanup and documenting
 03/05 - Modularising and adding to examples_utils
+17/05 - Added profiling
 
 ## Future work plans
 - Adding more functionality from ce_benchmarks/test automation repos to run_benchmarks

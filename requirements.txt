@@ -1,3 +1,5 @@
 cppimport==21.3.7
 filelock
-pyyaml
+psutil==5.7.0
+pyyaml==5.4.1
+reptil @ git+ssh://git@phabricator.sourcevertex.net/diffusion/REPTIL/reptil.git@05a7d35441933a7e8e60a0163aa30acbff871f09#egg=reptil

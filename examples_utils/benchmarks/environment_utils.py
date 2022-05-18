@@ -28,29 +28,31 @@ def get_mpinum(command: str) -> int:
     return mpinum
 
 
-def merge_environment_variables(benchmark_spec: dict) -> dict:
+def merge_environment_variables(new_env: dict, benchmark_spec: dict) -> dict:
     """Merge existing environment variables with new ones in the benchmark.
 
     Args:
+        new_env (dict): The new environment variables state to merge into 
+            current state
         benchmark_dict (dict): The benchmark entry itself in the yaml file
-        logger (logging.Logger): Logger to use
 
     Returns:
-        env (dict): Merged environment state to use for benchmarking
+        existing_env (dict): Merged environment state to use for benchmarking
     
     """
 
     # Build and log the additional ENV variables
-    new_env = {}
+    benchmark_env = {}
     if "env" in benchmark_spec:
-        new_env = copy.deepcopy(benchmark_spec["env"])
+        benchmark_env = copy.deepcopy(benchmark_spec["env"])
+    new_env.update(benchmark_env)
 
     logger.info(f"Running with the following {len(new_env)} ADDITIONAL ENV variables:")
     for k, v in new_env.items():
         logger.info(f"    {k}={v}")
 
     # Finally update existing env with new env
-    env = os.environ.copy()
-    env.update(new_env)
+    existing_env = os.environ.copy()
+    existing_env.update(new_env)
 
-    return env
+    return existing_env
