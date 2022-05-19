@@ -18,7 +18,7 @@ from examples_utils.benchmarks.command_utils import formulate_benchmark_command,
 from examples_utils.benchmarks.environment_utils import get_mpinum, merge_environment_variables
 from examples_utils.benchmarks.logging_utils import print_benchmark_summary
 from examples_utils.benchmarks.metrics_utils import derive_metrics, extract_metrics, get_results_for_compile_time
-from examples_utils.benchmarks.profiling_utils import add_profiling_vars, analyse_profile
+from examples_utils.benchmarks.profiling_utils import add_profiling_vars
 
 # Get the module logger
 logger = logging.getLogger()
@@ -214,8 +214,8 @@ def run_benchmark_variant(
     logger.info(f"Total runtime: {total_runtime} seconds")
 
     # Analyse profile data and output to logs
-    if args.profile:
-        output += analyse_profile(variant_name, cwd)
+    # if args.profile:
+    #     output += analyse_profile(variant_name, cwd)
 
     # If process didnt end as expected
     if exitcode:
