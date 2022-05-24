@@ -1,6 +1,7 @@
 # Copyright (c) 2022 Graphcore Ltd. All rights reserved.
 
 import yaml
+import re
 from typing import List
 from pathlib import Path
 
@@ -24,7 +25,18 @@ def parse_yaml_config(args, parser):
     def _read_yaml_config(config_filename):
         config_filename = Path(config_filename)
         with config_filename.open() as config_file:
-            configs = yaml.full_load(config_file)
+            loader = yaml.SafeLoader
+            loader.add_implicit_resolver(
+                u'tag:yaml.org,2002:float',
+                re.compile(
+                    u'''^(?:
+                [-+]?(?:[0-9][0-9_]*)\\.[0-9_]*(?:[eE][-+]?[0-9]+)?
+                |[-+]?(?:[0-9][0-9_]*)(?:[eE][-+]?[0-9]+)
+                |\\.[0-9_]+(?:[eE][-+][0-9]+)?
+                |[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\\.[0-9_]*
+                |[-+]?\\.(?:inf|Inf|INF)
+                |\\.(?:nan|NaN|NAN))$''', re.X), list(u'-+0123456789.'))
+            configs = yaml.load(config_file, Loader=loader)
         return configs
 
     def _yaml_to_string_list(config: dict) -> List[str]:
