@@ -135,7 +135,8 @@ def formulate_benchmark_command(
     cmd = benchmark_dict["cmd"].format(**variant_dict)
 
     old_cmd = " ".join(cmd.replace("\n", " ").split())
-    logger.info(f"Old cmd = '{old_cmd}'")
+    logger.info(f"original cmd = '{old_cmd}'")
+    logger.info(f"Cleaning and modifying command if required...")
 
     if ignore_wandb and "--wandb" in cmd:
         logger.info("Both '--ignore-wandb' and '--wandb' were passed, '--ignore-wandb' "
@@ -160,6 +161,6 @@ def formulate_benchmark_command(
     # Cleanse the string of new line chars and extra spaces
     cmd = " ".join(cmd.replace("\n", " ").split())
 
-    logger.info(f"New cmd = '{cmd}'")
+    logger.info(f"new cmd = '{cmd}'")
 
     return cmd
