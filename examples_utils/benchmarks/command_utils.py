@@ -1,6 +1,7 @@
 # Copyright (c) 2022 Graphcore Ltd. All rights reserved.
-import re
 import logging
+import re
+from pathlib import Path
 
 # Get the module logger
 logger = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ def create_variants(benchmark_dict: dict) -> list:
 
     Returns:
         variants (list): List of all variants from the given benchmark entry
-    
+
     """
 
     variants = [{}]
@@ -88,7 +89,7 @@ def get_benchmark_variants(benchmark_name: str, benchmark_dict: dict) -> list:
 
     Returns:
         variations (list): List of all possible variants from this benchmark
-    
+
     """
 
     # Create variants from benchmark
@@ -111,11 +112,12 @@ def formulate_benchmark_command(
         variant_dict: dict,
         ignore_wandb: bool,
         compile_only: bool,
+        examples_location: str = None,
 ) -> str:
     """Create the actual command to be run from an unformatted string.
 
     Args:
-        benchmark_dict (dict): Benchmark as specified in the yaml file, 
+        benchmark_dict (dict): Benchmark as specified in the yaml file,
             pre-formating to fill in variables
         variant_dict (dict): Variant specification, containing all the actual
             values of the variables to be used to construct this command
@@ -124,19 +126,38 @@ def formulate_benchmark_command(
         compile_only (bool): Whether or not to pass a `--compile-only` flag to
             the command. NOTE: This will only work if the app being run itself
             has implemented a `--compile-only` argument
+        examples_location (str): Location of the examples directory in system.
+            If not provided, defaults to assuming examples dir is located in
+            home dir.
 
     Returns:
         cmd (str): The final, formatted command to be run
-    
+
     """
 
     # Format the command (containing variables) by using the variant dict
     # (containing the actual values)
     cmd = benchmark_dict["cmd"].format(**variant_dict)
+    cmd = cmd.replace("\n", " ")
 
-    old_cmd = " ".join(cmd.replace("\n", " ").split())
+    old_cmd = " ".join(cmd.split())
     logger.info(f"original cmd = '{old_cmd}'")
     logger.info(f"Cleaning and modifying command if required...")
+
+    # Append application location from yaml to command
+    cmd_parts = cmd.split(" ")
+    if "python3" in cmd_parts:
+        py_name = "python3"
+    else:
+        py_name = "python"
+    called_file = cmd_parts[cmd_parts.index(py_name) + 1]
+
+    if examples_location is None:
+        examples_location = Path.home()
+    resolved_file = str(Path(Path.home(), benchmark_dict["location"], called_file).resolve())
+
+    cmd = cmd.replace(called_file, resolved_file)
+    print(cmd)
 
     if ignore_wandb and "--wandb" in cmd:
         logger.info("Both '--ignore-wandb' and '--wandb' were passed, '--ignore-wandb' "
@@ -147,7 +168,7 @@ def formulate_benchmark_command(
         logger.info("'--compile-only' was passed here. Appending '--compile-only' to " "the benchmark command.")
         cmd = cmd + " --compile-only"
 
-        # Dont import wandb if compile only mode, catching early
+        # Dont import wandb if compile only mode
         if "--wandb" in cmd:
             logger.info("--compile-only was passed, and wandb is not used for "
                         "compile only runs, purging '--wandb' from command.")

@@ -168,7 +168,8 @@ def run_benchmark_variant(
         logger.info("Removed data metrics for compile only benchmark")
 
     # Create the actual command for the variant
-    variant_command = formulate_benchmark_command(benchmark_dict, variant_dict, args.ignore_wandb, args.compile_only)
+    variant_command = formulate_benchmark_command(benchmark_dict, variant_dict, args.ignore_wandb, args.compile_only,
+                                                  args.examples_location)
 
     # Expand any environment variables in the command and split the command
     # into a list, respecting things like quotes, like the shell would
@@ -434,4 +435,10 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
         default=None,
         type=int,
         help="Maximum time allowed for any benchmark/variant (in seconds)",
+    )
+    parser.add_argument(
+        "--examples-location",
+        default=None,
+        type=int,
+        help="Location of the examples directory, defaults to user dir.",
     )
