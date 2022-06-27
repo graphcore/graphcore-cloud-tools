@@ -140,8 +140,8 @@ def formulate_benchmark_command(
     cmd = benchmark_dict["cmd"].format(**variant_dict)
     cmd = cmd.replace("\n", " ")
 
-    old_cmd = " ".join(cmd.split())
-    logger.info(f"original cmd = '{old_cmd}'")
+    cmd = " ".join(cmd.split())
+    logger.info(f"original cmd = '{cmd}'")
     logger.info(f"Cleaning and modifying command if required...")
 
     # Append application location from yaml to command
@@ -155,9 +155,7 @@ def formulate_benchmark_command(
     if examples_location is None:
         examples_location = Path.home()
     resolved_file = str(Path(Path.home(), benchmark_dict["location"], called_file).resolve())
-
     cmd = cmd.replace(called_file, resolved_file)
-    print(cmd)
 
     if ignore_wandb and "--wandb" in cmd:
         logger.info("Both '--ignore-wandb' and '--wandb' were passed, '--ignore-wandb' "

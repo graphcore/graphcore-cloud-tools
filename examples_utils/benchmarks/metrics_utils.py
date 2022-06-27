@@ -193,11 +193,15 @@ def get_results_for_compile_time(results: dict, stderr: str, exitcode: int) -> d
     # Calculate overall start/end times from all instances
     results = get_overall_compile_times(results, results_per_inst, exitcode)
 
-    # Log compile time
+    # Log compile time and add to stderr
     is_recording_legit = isinstance(results["total_compiling_time"]["mean"], float)
     if is_recording_legit:
         printable_time = round(results["total_compiling_time"]["mean"], 2)
-    logger.info(f"   Total compile time: {printable_time if is_recording_legit else 'ERROR'} seconds")
+        compile_time_output = f"   Total compile time: {printable_time} seconds"
+    else:
+        compile_time_output = f"   Total compile time: ERROR"
+
+    logger.info(compile_time_output)
 
     return results
 

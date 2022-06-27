@@ -16,7 +16,7 @@ import yaml
 
 from examples_utils.benchmarks.command_utils import formulate_benchmark_command, get_benchmark_variants
 from examples_utils.benchmarks.environment_utils import get_mpinum, merge_environment_variables
-from examples_utils.benchmarks.logging_utils import print_benchmark_summary
+from examples_utils.benchmarks.logging_utils import print_benchmark_summary, get_wandb_link, upload_compile_time
 from examples_utils.benchmarks.metrics_utils import derive_metrics, extract_metrics, get_results_for_compile_time
 from examples_utils.benchmarks.profiling_utils import add_profiling_vars
 
@@ -227,11 +227,6 @@ def run_benchmark_variant(
         logger.critical(err)
         sys.exit(exitcode)
 
-    with open(outlog_path, "w") as f:
-        f.write(output)
-    with open(errlog_path, "w") as f:
-        f.write(err)
-
     # Get 'data' metrics, these are metrics scraped from the log
     results, extraction_failure = extract_metrics(
         benchmark_dict.get("data", {}),
@@ -254,6 +249,16 @@ def run_benchmark_variant(
         err,
         exitcode,
     )
+
+    # Add compile time results to wandb link, if wandb was enabled
+    wandb_link = get_wandb_link(err)
+    if wandb_link is not None:
+        upload_compile_time(wandb_link, results)
+
+    with open(outlog_path, "w") as f:
+        f.write(output)
+    with open(errlog_path, "w") as f:
+        f.write(err)
 
     # Store metrics/details for this variant and return
     variant_result = {

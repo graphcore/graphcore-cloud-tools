@@ -3,6 +3,7 @@ import argparse
 import logging
 import os
 import sys
+import wandb
 from datetime import datetime
 from pathlib import Path
 from time import time
@@ -61,3 +62,27 @@ def print_benchmark_summary(results: dict):
         print("=================== short test summary info ====================\n")
         print("\n".join(summary) + "\n")
         print(f"================ {failed} failed, {passed} passed ===============")
+
+
+def get_wandb_link(stderr):
+    """Get a wandb link from stderr if it exists.
+    """
+
+    wandb_link = None
+    for line in stderr.split("\n"):
+        if "https://wandb.sourcevertex.net" in line and "/runs/" in line:
+            wandb_link = "https:/" + line.split("https:/")[1]
+            wandb_link = wandb_link.replace("\n", "")
+
+    return wandb_link
+
+
+def upload_compile_time(wandb_link, results):
+    """Upload compile time results to a wandb link
+    """
+
+    # Re-initialise link to allow uploading again
+    link_parts = wandb_link.split("/")
+    run = wandb.init(project=link_parts[-3], id=link_parts[-1], resume="allow")
+
+    run.log({"Total compile time": results["total_compiling_time"]["mean"]})
