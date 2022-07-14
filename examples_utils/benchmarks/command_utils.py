@@ -154,7 +154,7 @@ def formulate_benchmark_command(
 
     if examples_location is None:
         examples_location = Path.home()
-    resolved_file = str(Path(Path.home(), benchmark_dict["location"], called_file).resolve())
+    resolved_file = str(Path(examples_location, benchmark_dict["location"], called_file).resolve())
     cmd = cmd.replace(called_file, resolved_file)
 
     if ignore_wandb and "--wandb" in cmd:

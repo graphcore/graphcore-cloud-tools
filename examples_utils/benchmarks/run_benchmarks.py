@@ -225,7 +225,8 @@ def run_benchmark_variant(
         logger.critical(output)
         logger.critical("STDERR:")
         logger.critical(err)
-        sys.exit(exitcode)
+        if not args.ignore_errors:
+            sys.exit(exitcode)
 
     # Get 'data' metrics, these are metrics scraped from the log
     results, extraction_failure = extract_metrics(
@@ -445,6 +446,11 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--examples-location",
         default=None,
-        type=int,
+        type=str,
         help="Location of the examples directory, defaults to user dir.",
+    )
+    parser.add_argument(
+        "--ignore-errors",
+        action="store_true",
+        help="Do not stop on an error",
     )
