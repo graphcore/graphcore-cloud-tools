@@ -1,6 +1,8 @@
 # Copyright (c) 2022 Graphcore Ltd. All rights reserved.
 import argparse
+import csv
 import logging
+import json
 import os
 import selectors
 import shlex
@@ -270,10 +272,10 @@ def run_benchmark_variant(
         "params": variant_dict,
         "command": variant_command,
         "results": results,
-        "timestamp": start_time,
-        "end_time": end_time,
-        "compilation_end_time": results["total_compiling_time"]["mean"],
-        "test_duration": total_runtime,
+        "start_time": str(start_time),
+        "end_time": str(end_time),
+        "compilation_end_time": str(results["total_compiling_time"]["mean"]),
+        "test_duration": str(total_runtime),
         "exitcode": exitcode,
     }
 
@@ -387,10 +389,34 @@ def run_benchmarks(args: argparse.ArgumentParser):
                 result_list.append(benchmark_result)
 
             results[benchmark_name] = result_list
-            print(results)
 
     # Print PASSED/FAILED summary
     print_benchmark_summary(results)
+
+    # Save results dict as JSON
+    with open(f"{args.logdir}/benchmark_results.json", "w") as json_file:
+        json.dump(results, json_file, sort_keys=True, indent=2)
+
+    # Parse summary into CSV and save in logs directory
+    csv_metrics = ["throughput", "latency", "total_compiling_time"]
+    with open(f"{args.logdir}/benchmark_results.csv", "w") as csv_file:
+        writer = csv.writer(csv_file, quoting=csv.QUOTE_ALL)
+        # Use a fixed set of headers, any more detail belongs in the JSON file
+        writer.writerow(["Benchmark name", "Variant name"] + csv_metrics)
+
+        # Write a row for each variant
+        for benchmark, result in results.items():
+            for r in result:
+                csv_row = [benchmark, r["variant_name"]]
+
+                # Find all the metrics we have available from the list defined
+                for metric in csv_metrics:
+                    value = list(r["results"].get(metric, {0: None}).values())[0]
+                    if value is not None:
+                        value = float(value)
+                    csv_row.append(value)
+
+                writer.writerow(csv_row)
 
 
 def benchmarks_parser(parser: argparse.ArgumentParser):

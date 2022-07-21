@@ -58,10 +58,10 @@ def print_benchmark_summary(results: dict):
     for benchmark, variants in results.items():
         for variant in variants:
             if variant.get("exitcode") == 0:
-                summary.append(f"PASSED {variant['benchmark_path']}::{benchmark}::" f"{variant['benchmark_name']}")
+                summary.append(f"PASSED {benchmark}::" f"{variant['benchmark_name']}")
                 passed += 1
             else:
-                summary.append(f"FAILED {variant['benchmark_path']}::{benchmark}::" f"{variant['benchmark_name']}")
+                summary.append(f"FAILED {benchmark}::" f"{variant['benchmark_name']}")
                 failed += 1
 
     if summary:
