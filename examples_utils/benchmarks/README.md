@@ -28,27 +28,7 @@ python3 -m examples_utils benchmark --spec /path/to/application/benchmarks.yml /
 ```
 
 ## Other functionality
-In addition to the logs and metrics already recorded, there are a few other features included for making benchmarking easier and more customisable. 
-
-Looking at the output of script with the `--help` argument:
-```
---spec SPEC [SPEC ...] (required)
-    Yaml files with benchmark spec
---benchmark BENCHMARK [BENCHMARK ...]
-    List of benchmark ids to run
---compile-only
-    Enable compile only options in compatible models
---ignore-wandb
-    Ignore any wandb commands
---logdir LOGDIR
-    Folder to place log files
---logging {DEBUG,INFO,ERROR,CRITICAL,WARNING}
-    Specify the logging level
---profile
-    Enable profiling for the benchmarks, setting the appropriate environment variables and storing profiling reports in the cwd
---timeout TIMEOUT
-    Maximum time allowed for any of the benchmarks/variants (in seconds)
-```
+In addition to the logs and metrics already recorded, there are a few other features included for making benchmarking easier and more customisable. Please see the output of 'python3 -m examples_utils benchmark -help' for more info
 
 Points to note are:
 - Multiple values can be passed to the `--spec` argument, either as multiple paths or as a wildcard expression to a whole dir containing yaml files (only the yaml files will be read by the script)
@@ -56,16 +36,23 @@ Points to note are:
 - Multiple benchmarks can be passed to the `--benchmark` argument and they will be run in the order provided
 - When profiling, the popvision profile is saved in the current working directory (this will be the application directory where the benchmarks are being run) and `POPLAR_ENGINE_OPTIONS` is given: `"autoReport.all": "true"` and `"autoReport.outputSerializedGraph": "false"`. This is to enable all standard profiling functionality but avoiding making the profile too large.
 
-## Changelong
-07/04 - Initial commits
-28/04 - Post-review cleanup and documenting
-03/05 - Modularising and adding to examples_utils
-17/05 - Added profiling
-22/06 - Adding robust pathfidning for ymls/scripts
-27/06 - Adding wandb compile time updating
-06/07 - Adding more functionality from internal benchmarking tools
+## Changelog
+- 07/04 - Initial commits
+- 28/04 - Post-review cleanup and documenting
+- 03/05 - Modularising and adding to examples_utils
+- 17/05 - Added profiling
+- 22/06 - Adding robust pathfidning for ymls/scripts
+- 27/06 - Compile times are now logged to wandb runs where applicable
+- 06/07 - Adding more functionality from internal benchmarking tools
+- 21/07 - Results now stored at the end of benchmarking in CSV and JSON formats
+- 30/07 - Multi-host + Multi-instance benchmarks can now be run with this
 
 ## Future work plans
 - Support for pytest benchmarks
-- CSV report generation from results of multiple benchmarks
-- Adding profile analysis to profiling 
+- Adding profile analysis to profiling
+- Remove wandb by default for external users
+- Filter out convergence testing by default
+- Fix the order in which benchmarks are run to the order they are defined in benchmark yaml files
+- Slack integration
+- Adding checkpoint uploading and offline wandb capabilities
+- Creating documentation

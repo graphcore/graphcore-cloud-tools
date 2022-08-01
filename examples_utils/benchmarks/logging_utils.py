@@ -24,14 +24,14 @@ def configure_logger(args: argparse.ArgumentParser):
     """
 
     # Setup dir
-    if not args.logdir:
+    if not args.log_dir:
         time_str = datetime.fromtimestamp(time()).strftime("%Y-%m-%d-%H.%M.%S.%f")
-        args.logdir = Path(os.getcwd(), f"log_{time_str}").resolve()
+        args.log_dir = Path(os.getcwd(), f"log_{time_str}").resolve()
     else:
-        args.logdir = Path(args.logdir).resolve()
+        args.log_dir = Path(args.log_dir).resolve()
 
-    if not args.logdir.exists():
-        args.logdir.mkdir(parents=True)
+    if not args.log_dir.exists():
+        args.log_dir.mkdir(parents=True)
 
     # Setup logger
     logger = logging.getLogger()
@@ -41,7 +41,7 @@ def configure_logger(args: argparse.ArgumentParser):
     logger.addHandler(handler)
     logger.setLevel(args.logging)
 
-    logger.info(f"Logging directory: '{args.logdir}'")
+    logger.info(f"Logging directory: '{args.log_dir}'")
 
 
 def print_benchmark_summary(results: dict):

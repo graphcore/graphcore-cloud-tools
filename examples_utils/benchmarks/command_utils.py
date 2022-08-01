@@ -1,6 +1,9 @@
 # Copyright (c) 2022 Graphcore Ltd. All rights reserved.
 import logging
+import os
 import re
+import subprocess
+from argparse import ArgumentParser
 from pathlib import Path
 
 # Get the module logger
@@ -110,9 +113,7 @@ def get_benchmark_variants(benchmark_name: str, benchmark_dict: dict) -> list:
 def formulate_benchmark_command(
         benchmark_dict: dict,
         variant_dict: dict,
-        ignore_wandb: bool,
-        compile_only: bool,
-        examples_location: str = None,
+        args: ArgumentParser,
 ) -> str:
     """Create the actual command to be run from an unformatted string.
 
@@ -121,14 +122,7 @@ def formulate_benchmark_command(
             pre-formating to fill in variables
         variant_dict (dict): Variant specification, containing all the actual
             values of the variables to be used to construct this command
-        ignore_wandb (bool): Whether or not to ignore wandb flags passed to the
-            original command
-        compile_only (bool): Whether or not to pass a `--compile-only` flag to
-            the command. NOTE: This will only work if the app being run itself
-            has implemented a `--compile-only` argument
-        examples_location (str): Location of the examples directory in system.
-            If not provided, defaults to assuming examples dir is located in
-            home dir.
+        args (ArgumentParser): Arguments passed to this benchmarking run
 
     Returns:
         cmd (str): The final, formatted command to be run
@@ -152,18 +146,17 @@ def formulate_benchmark_command(
         py_name = "python"
     called_file = cmd_parts[cmd_parts.index(py_name) + 1]
 
-    if examples_location is None:
-        examples_location = Path.home()
-    resolved_file = str(Path(examples_location, benchmark_dict["location"], called_file).resolve())
+    resolved_file = str(Path(args.examples_location, benchmark_dict["location"], called_file).resolve())
     cmd = cmd.replace(called_file, resolved_file)
 
-    if ignore_wandb and "--wandb" in cmd:
-        logger.info("Both '--ignore-wandb' and '--wandb' were passed, '--ignore-wandb' "
-                    "is overriding, purging '--wandb' from command.")
+    if args.ignore_wandb and "--wandb" in cmd:
+        logger.info("Both '--ignore-wandb' and '--wandb' were passed, "
+                    "'--ignore-wandb' is overriding, purging '--wandb' from "
+                    "command.")
         cmd = cmd.replace("--wandb", "")
 
-    if compile_only:
-        logger.info("'--compile-only' was passed here. Appending '--compile-only' to " "the benchmark command.")
+    if args.compile_only:
+        logger.info("'--compile-only' was passed here. Appending '--compile-only' to the benchmark command.")
         cmd = cmd + " --compile-only"
 
         # Dont import wandb if compile only mode
@@ -183,3 +176,88 @@ def formulate_benchmark_command(
     logger.info(f"new cmd = '{cmd}'")
 
     return cmd
+
+
+def get_poprun_hosts(cmd: list) -> list:
+    """Get names/IPs of poprun hosts defined in the `--host` argument.
+
+    Args:
+        cmd (list): The command being run, which may include a poprun call that
+            specifies hosts
+
+    Returns:
+        poprun_hostnames (list): names/IPs of poprun hosts
+    
+    """
+
+    # Find where in the command list "poprun", "host" and "python" exist
+    # If poprun is not called, then it cannot be multihost + multi-instance
+    try:
+        poprun_index = cmd.index("poprun")
+    except:
+        logger.info("poprun not called, assuming this is a single-host, single-instance benchmark.")
+        return []
+
+    # If "--host" is not defined, then instances must be running on one host
+    try:
+        host_index = cmd.index([x for x in cmd if "--host" in x][0])
+    except:
+        logger.info("'--host' argument not provided, assuming all instances "
+                    "defined in this benchmark will run on this host only")
+        return []
+
+    # Watch out for "python" instead of "python3"
+    try:
+        python_index = cmd.index("python3")
+    except:
+        python_index = cmd.index("python")
+
+    poprun_hostnames = []
+    if (poprun_index < host_index < python_index):
+        # Hostnames can be passed with "=" or just with a space to the arg
+        if "=" in cmd[host_index]:
+            poprun_hostnames = cmd[host_index].split("=")[1].split(",")
+        else:
+            poprun_hostnames = cmd[host_index + 1].split(",")
+
+        num_hosts = len(poprun_hostnames)
+
+    if num_hosts > 1:
+        logger.info("Benchmark is running multiple instances over multiple hosts, preparing all hosts.")
+    else:
+        logger.info("Only one value has been passed to the '--host' argument, "
+                    "assuming all instances defined for this benchmark will "
+                    "run on this host only")
+
+    # Find all forms of ID for this local machine
+    possible_hostnames = []
+    possible_hostnames.append(os.uname()[1])
+
+    # Query ifconfig for internal/external IPs
+    for category in ["eno1", "enp161s0f1", "enp65s0f0np0"]:
+        try:
+            process = subprocess.Popen(
+                ["ifconfig", category],
+                stdout=subprocess.PIPE,
+            )
+            out, _ = process.communicate()
+        except:
+            out = "inet "
+        possible_hostnames.append(str(re.search(r"inet *(.*?) ", str(out)).group(1)))
+
+    # Remove this machines name/IP from the list
+    for hostname in poprun_hostnames:
+        if any(hostname in x for x in possible_hostnames):
+            poprun_hostnames.remove(hostname)
+
+    if len(poprun_hostnames) == num_hosts:
+        logger.info("This machines hostname/IP could not be found in the "
+                    "values provided to the '--host' argument for poprun. "
+                    "Assuming that the first value in the list provided is the "
+                    "this machines hostname, and skipping interacting with the "
+                    "filesystem on it. If this is not the case, please use "
+                    "either the host name as seen in the $HOSTNAME environment "
+                    "variable, or using internal/external IP addresses.")
+        poprun_hostnames = poprun_hostnames[1:]
+
+    return poprun_hostnames

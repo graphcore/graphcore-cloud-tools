@@ -1,8 +1,8 @@
 # Copyright (c) 2022 Graphcore Ltd. All rights reserved.
 import argparse
 import csv
-import logging
 import json
+import logging
 import os
 import selectors
 import shlex
@@ -15,11 +15,30 @@ from pathlib import Path
 from typing import Tuple
 
 import yaml
-
-from examples_utils.benchmarks.command_utils import formulate_benchmark_command, get_benchmark_variants
-from examples_utils.benchmarks.environment_utils import get_mpinum, merge_environment_variables
-from examples_utils.benchmarks.logging_utils import print_benchmark_summary, get_wandb_link, upload_compile_time, WANDB_AVAILABLE
-from examples_utils.benchmarks.metrics_utils import derive_metrics, extract_metrics, get_results_for_compile_time
+from examples_utils.benchmarks.command_utils import (
+    formulate_benchmark_command,
+    get_benchmark_variants,
+    get_poprun_hosts,
+)
+from examples_utils.benchmarks.distributed_utils import (
+    remove_distributed_filesystems,
+    setup_distributed_filesystems,
+)
+from examples_utils.benchmarks.environment_utils import (
+    get_mpinum,
+    merge_environment_variables,
+)
+from examples_utils.benchmarks.logging_utils import (
+    WANDB_AVAILABLE,
+    get_wandb_link,
+    print_benchmark_summary,
+    upload_compile_time,
+)
+from examples_utils.benchmarks.metrics_utils import (
+    derive_metrics,
+    extract_metrics,
+    get_results_for_compile_time,
+)
 from examples_utils.benchmarks.profiling_utils import add_profiling_vars
 
 # Get the module logger
@@ -68,7 +87,7 @@ def run_and_monitor_progress(cmd: list, listener: TextIOWrapper, timeout: int, *
                     else:
                         outs[1].append(data)
                 except UnicodeDecodeError as e:
-                    print(f"{e} \n Unable to decode: {data}. ")
+                    pass
 
         (a, b) = proc.communicate()
         outs[0].append(a.decode())
@@ -170,8 +189,7 @@ def run_benchmark_variant(
         logger.info("Removed data metrics for compile only benchmark")
 
     # Create the actual command for the variant
-    variant_command = formulate_benchmark_command(benchmark_dict, variant_dict, args.ignore_wandb, args.compile_only,
-                                                  args.examples_location)
+    variant_command = formulate_benchmark_command(benchmark_dict, variant_dict, args)
 
     # Expand any environment variables in the command and split the command
     # into a list, respecting things like quotes, like the shell would
@@ -182,11 +200,11 @@ def run_benchmark_variant(
     logger.info(f"\tcwd = '{cwd}'")
 
     # Create the log directory
-    variant_logdir = Path(args.logdir, variant_name)
-    if not variant_logdir.exists():
-        variant_logdir.mkdir(parents=True)
-    outlog_path = Path(variant_logdir, "stdout.log")
-    errlog_path = Path(variant_logdir, "stderr.log")
+    variant_log_dir = Path(args.log_dir, variant_name)
+    if not variant_log_dir.exists():
+        variant_log_dir.mkdir(parents=True)
+    outlog_path = Path(variant_log_dir, "stdout.log")
+    errlog_path = Path(variant_log_dir, "stderr.log")
 
     # Set the environment variables
     new_env = {}
@@ -202,6 +220,14 @@ def run_benchmark_variant(
     # environment variables
     env = merge_environment_variables(new_env, benchmark_dict)
 
+    # Detect if benchmark requires instances running (not just compiling) on
+    # other hosts, and then prepare hosts
+    poprun_hostnames = get_poprun_hosts(cmd)
+    is_distributed = len(poprun_hostnames) > 1 and not args.compile_only
+    if is_distributed:
+        # Setup temporary filesystems on all hosts and modify cmd to use this
+        setup_distributed_filesystems(args, poprun_hostnames)
+
     start_time = datetime.now()
     logger.info(f"Start test: {start_time}")
     output, err, exitcode = run_and_monitor_progress(
@@ -216,9 +242,20 @@ def run_benchmark_variant(
     logger.info(f"End test: {end_time}")
     logger.info(f"Total runtime: {total_runtime} seconds")
 
-    # Analyse profile data and output to logs
+    # TODO: Analyse profile data and output to logs with REPTIL
     # if args.profile:
     #     output += analyse_profile(variant_name, cwd)
+
+    # Teardown temporary filesystem on all hosts
+    if is_distributed and args.remove_dirs_after:
+        remove_distributed_filesystems(args, poprun_hostnames)
+
+    if not is_distributed and args.remove_dirs_after:
+        logger.info("'--remove-dirs-after has been set but this benchmark has "
+                    "not been specified to use multiple hosts, and so there "
+                    "are no remote temporary filesystems to delete. Local "
+                    "filesystems on this host will not automatically be "
+                    "deleted.")
 
     # If process didnt end as expected
     if exitcode:
@@ -328,7 +365,7 @@ def run_benchmarks(args: argparse.ArgumentParser):
         spec.update(found_benchmarks)
 
     results = {}
-    output_log_path = Path(args.logdir, "output.log")
+    output_log_path = Path(args.log_dir, "output.log")
     with open(output_log_path, "w", buffering=1) as listener:
         logger.info(f"Logs at: {output_log_path}")
 
@@ -394,12 +431,12 @@ def run_benchmarks(args: argparse.ArgumentParser):
     print_benchmark_summary(results)
 
     # Save results dict as JSON
-    with open(f"{args.logdir}/benchmark_results.json", "w") as json_file:
+    with open(Path(args.log_dir, "benchmark_results.json"), "w") as json_file:
         json.dump(results, json_file, sort_keys=True, indent=2)
 
     # Parse summary into CSV and save in logs directory
     csv_metrics = ["throughput", "latency", "total_compiling_time"]
-    with open(f"{args.logdir}/benchmark_results.csv", "w") as csv_file:
+    with open(Path(args.log_dir, "benchmark_results.csv"), "w") as csv_file:
         writer = csv.writer(csv_file, quoting=csv.QUOTE_ALL)
         # Use a fixed set of headers, any more detail belongs in the JSON file
         writer.writerow(["Benchmark name", "Variant name"] + csv_metrics)
@@ -441,12 +478,24 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
         help="Enable compile only options in compatible models",
     )
     parser.add_argument(
+        "--examples-location",
+        default=str(Path.home()),
+        type=str,
+        help=("Parent dir of the examples directory, defaults to the value of "
+              "$HOME."),
+    )
+    parser.add_argument(
+        "--ignore-errors",
+        action="store_true",
+        help="Do not stop on an error",
+    )
+    parser.add_argument(
         "--ignore-wandb",
         action="store_true",
         help="Ignore any wandb commands",
     )
     parser.add_argument(
-        "--logdir",
+        "--log-dir",
         default=None,
         type=str,
         help="Folder to place log files",
@@ -464,19 +513,36 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
               "environment variables and storing profiling reports in the cwd"),
     )
     parser.add_argument(
+        "--remove-dirs-after",
+        action="store_true",
+        help=("Whether or not to remove all directories used for benchmarking "
+              "from all hosts involved after the benchmark is complete. This "
+              "includes the examples, SDKs and venvs directories."),
+    )
+    parser.add_argument(
+        "--requirements-file",
+        default=str(Path.cwd().joinpath("requirements.txt")),
+        type=str,
+        help=("Path to the application's requirements file. Should only be "
+              "manually provided if requested by this benchmarking module. "
+              "Defaults to the parent dir of the benchmarks.yml file."),
+    )
+    parser.add_argument(
+        "--sdk-path",
+        default=str(Path.home().joinpath("sdks")),
+        type=str,
+        help="path of the PoplarSDK directory, defaults to '~/sdks'.",
+    )
+    parser.add_argument(
         "--timeout",
         default=None,
         type=int,
         help="Maximum time allowed for any benchmark/variant (in seconds)",
     )
     parser.add_argument(
-        "--examples-location",
-        default=None,
+        "--venv-path",
+        default=str(Path.home().joinpath("venvs")),
         type=str,
-        help="Location of the examples directory, defaults to user dir.",
-    )
-    parser.add_argument(
-        "--ignore-errors",
-        action="store_true",
-        help="Do not stop on an error",
+        help=("Path to the python virtual environment (venv used for the "
+              "PoplarSDK) directory, defaults to '~/venvs'."),
     )
