@@ -243,7 +243,7 @@ def extract_metrics(extraction_config: dict, log: str, exitcode: int, num_replic
             logger.error(f"  '{name}' had non-zero exitcode: '{str(exitcode)}'")
         # Check results sufficient for 'skip'
         elif len(all_results) <= metric_spec["skip"]:
-            logger.error(f"  '{name}' has less results than the skip value: " f"'{metric_spec['skip']}'")
+            logger.error(f"  '{name}' has less results than the skip value: '{metric_spec['skip']}'")
 
         # Post-process the results
         else:
@@ -343,7 +343,7 @@ def derive_metrics(
                 result = eval(expression)
                 logger.info(f"   '{name}' = '{str(result)}'")
             except:
-                logger.error(f"   ERROR: '{name}' = 'derived' expression: " f"'{expression}' excepted")
+                logger.error(f"   ERROR: '{name}' = 'derived' expression: '{expression}' excepted")
 
         results[name] = {config["reduction_type"]: result}
 
