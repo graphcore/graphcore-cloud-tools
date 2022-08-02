@@ -1,10 +1,6 @@
 # Copyright (c) 2022 Graphcore Ltd. All rights reserved.
 
-import os
-from examples_utils.load_lib_utils.cppimport_safe import cppimport_build_safe
-
-cd = os.path.dirname(os.path.abspath(__file__))
-cppimport_build_safe(os.path.join(cd, 'sdk_version_hash_lib.cpp'))
+import cppimport.import_hook
 from . import sdk_version_hash_lib
 
 __all__ = ['sdk_version_hash']
