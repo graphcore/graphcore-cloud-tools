@@ -51,13 +51,7 @@ def setup_distributed_filesystems(args: ArgumentParser, poprun_hostnames: list):
     
     """
 
-    # Find where examples dir could be
-    if Path(args.examples_location, "public_examples").is_dir():
-        examples_path = args.examples_location + "/public_examples"
-    else:
-        examples_path = args.examples_location + "/examples"
-
-    dirs_to_sync = [examples_path, args.sdk_path, args.venv_path]
+    dirs_to_sync = [args.examples_path, args.sdk_path, args.venv_path]
 
     with open(Path(args.log_dir, "host_setup.log"), "w") as output_stream:
         # Ensure this host can direct the others
@@ -89,13 +83,7 @@ def remove_distributed_filesystems(args: ArgumentParser, poprun_hostnames: list)
 
     """
 
-    # Find where examples dir could be
-    if Path(args.examples_location, "public_examples").is_dir():
-        examples_path = args.examples_location + "/public_examples"
-    else:
-        examples_path = args.examples_location + "/examples"
-
-    dirs_to_remove = [examples_path, args.sdk_path, args.venv_path]
+    dirs_to_remove = [args.examples_path, args.sdk_path, args.venv_path]
 
     with open(Path(args.log_dir, "host_teardown.log"), "w") as output_stream:
         for hostname, dirname in itertools.product(poprun_hostnames, dirs_to_remove):

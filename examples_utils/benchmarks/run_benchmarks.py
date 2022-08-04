@@ -27,6 +27,7 @@ from examples_utils.benchmarks.distributed_utils import (
 )
 from examples_utils.benchmarks.environment_utils import (
     get_mpinum,
+    infer_paths,
     merge_environment_variables,
 )
 from examples_utils.benchmarks.logging_utils import (
@@ -221,7 +222,11 @@ def run_benchmark_variant(
     # environment variables
     env = merge_environment_variables(new_env, benchmark_dict)
 
+    # Infer examples, SDK and venv path for this benchmark
+    args = infer_paths(args, benchmark_dict)
+
     logger.info(f"Datasets directory: '{os.getenv('DATASETS_DIR')}'")
+
     # Detect if benchmark requires instances running (not just compiling) on
     # other hosts, and then prepare hosts
     poprun_hostnames = get_poprun_hosts(cmd)
@@ -362,10 +367,12 @@ def run_benchmarks(args: argparse.ArgumentParser):
 
         # Only check explicitily listed benchmarks if provided
         if args.benchmark is None:
-            args.benchmark = list(spec.keys())
+            benchmarks_list = list(spec.keys())
+        else:
+            benchmarks_list = args.benchmark
 
         variant_dictionary = OrderedDict()
-        for benchmark_name in args.benchmark:
+        for benchmark_name in benchmarks_list:
             # Check if this benchmark exists
             if benchmark_name not in list(spec.keys()):
                 err = (f"Benchmark {benchmark_name} not found in any of the provided spec files, exiting.")
@@ -379,7 +386,7 @@ def run_benchmarks(args: argparse.ArgumentParser):
 
             # Skip convergence tests by default unless --include-convergence
             # is provided, or they are explicitly named in --benchmarks
-            if ("_conv" in benchmark_name) and (not args.include_convergence):
+            if ((args.benchmark is None) and ("_conv" in benchmark_name) and (not args.include_convergence)):
                 continue
 
             # Enforce DATASETS_DIR set only if this benchmark needs real data
@@ -485,11 +492,14 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
         help="Enable compile only options in compatible models",
     )
     parser.add_argument(
-        "--examples-location",
-        default=str(Path.home()),
-        type=str,
-        help=("Parent dir of the examples directory, defaults to the value of "
-              "$HOME."),
+        "--include-convergence",
+        action="store_true",
+        help=("Include convergence tests (name ending in '_conv') in the set "
+              "of benchmarks being run. This only has any effect if "
+              "convergence tests would be run anyway i.e. if there are "
+              "convergence benchmarks in the yaml file provided in '--spec' or "
+              "if the convergence test required is named explicitly in "
+              "'--benchmarks'."),
     )
     parser.add_argument(
         "--ignore-errors",
@@ -530,31 +540,8 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
               "Defaults to the parent dir of the benchmarks.yml file."),
     )
     parser.add_argument(
-        "--sdk-path",
-        default=str(Path.home().joinpath("sdks")),
-        type=str,
-        help="path of the PoplarSDK directory, defaults to '~/sdks'.",
-    )
-    parser.add_argument(
         "--timeout",
         default=None,
         type=int,
         help="Maximum time allowed for any benchmark/variant (in seconds)",
-    )
-    parser.add_argument(
-        "--venv-path",
-        default=str(Path.home().joinpath("venvs")),
-        type=str,
-        help=("Path to the python virtual environment (venv used for the "
-              "PoplarSDK) directory, defaults to '~/venvs'."),
-    )
-    parser.add_argument(
-        "--include-convergence",
-        action="store_true",
-        help=("Include convergence tests (name ending in '_conv') in the set "
-              "of benchmarks being run. This only has any effect if "
-              "convergence tests would be run anyway i.e. if there are "
-              "convergence benchmarks in the yaml file provided in '--spec' or "
-              "if the convergence test required is named explicitly in "
-              "'--benchmarks'."),
     )

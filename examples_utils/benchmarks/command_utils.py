@@ -10,7 +10,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-def create_variants(benchmark_dict: dict) -> list:
+def create_variants(benchmark_name: str, benchmark_dict: dict) -> list:
     """Create all variants from a benchmark entry.
 
     Note:
@@ -42,6 +42,7 @@ def create_variants(benchmark_dict: dict) -> list:
         apply.
 
     Args:
+        benchmark_name (str): Benchmarks name as given in the spec yaml file
         benchmark_dict (dict): benchmark entry itself in yaml file
 
     Returns:
@@ -78,7 +79,14 @@ def create_variants(benchmark_dict: dict) -> list:
                             variants.append(x)
 
         else:
-            raise ValueError("'parameters' defined are neither a list nor a dict")
+            err = (f"In {benchmark_name} in {benchmark_dict['benchmark_path']},"
+                   " the 'parameters' are defined in neither a list style or "
+                   "a dict style. They must be defined as one of the two "
+                   "(using a comma seperated list, optionally surrounded by "
+                   "square brackets, or as a dict, surrounded by curly "
+                   "brackets).")
+            logger.error(err)
+            raise ValueError(err)
 
     return variants
 
@@ -96,7 +104,7 @@ def get_benchmark_variants(benchmark_name: str, benchmark_dict: dict) -> list:
     """
 
     # Create variants from benchmark
-    variant_names = create_variants(benchmark_dict)
+    variant_names = create_variants(benchmark_name, benchmark_dict)
 
     variants = []
     for variant in variant_names:
@@ -146,8 +154,12 @@ def formulate_benchmark_command(
         py_name = "python"
     called_file = cmd_parts[cmd_parts.index(py_name) + 1]
 
-    resolved_file = str(Path(args.examples_location, benchmark_dict["location"], called_file).resolve())
+    resolved_file = str(Path(called_file).resolve())
     cmd = cmd.replace(called_file, resolved_file)
+
+    # Change cwd to where the resolved file is, in case benchmarks file is not
+    # in same dir as called python file
+    os.chdir(Path(resolved_file).parent)
 
     if not args.allow_wandb and "--wandb" in cmd:
         logger.info("'--allow-wandb' was not passed, however '--wandb' is an "
