@@ -7,10 +7,9 @@ import os
 import re
 import sys
 import configparser
+import json
 
 C_FILE_EXTS = ['c', 'cpp', 'C', 'cxx', 'c++', 'h', 'hpp']
-
-EXCLUDED = []
 
 
 def check_file(path, language, amend):
@@ -65,14 +64,21 @@ def read_git_submodule_paths():
         return []
 
 
-def test_copyrights(root_path, amend=False):
+def test_copyrights(root_path, amend=False, exclude_josn=None):
     """A test to ensure that every source file has the correct Copyright"""
     git_module_paths = read_git_submodule_paths()
 
     root_path = os.path.abspath(root_path)
 
+    if exclude_josn is not None:
+        with open(exclude_josn) as f:
+            exclude = json.load(f)
+        exclude = exclude['exclude']
+    else:
+        exclude = []
+
     bad_files = []
-    excluded = [os.path.join(root_path, p) for p in EXCLUDED]
+    excluded = [os.path.join(root_path, p) for p in exclude]
     for path, _, files in os.walk(root_path):
         for file_name in files:
             file_path = os.path.join(path, file_name)
@@ -106,17 +112,25 @@ def test_copyrights(root_path, amend=False):
         print("Copyright headers checks passed.")
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Copyright header test")
+def copyright_argparser(parser: argparse.ArgumentParser):
+    """Add load lib build CLI commands to argparse parser"""
     parser.add_argument('path',
                         nargs='?',
                         default='.',
                         help='Directory to start searching for files. '
                         'Defaults to current working directory.')
     parser.add_argument("--amend", action="store_true", help="Amend copyright headers in files.")
+    parser.add_argument("--exclude_json",
+                        default=None,
+                        help="Provide a path to a JSON file which include files to exclude")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Copyright header test")
+    copyright_argparser(parser)
 
     opts = parser.parse_args()
     try:
-        test_copyrights(opts.path, opts.amend)
+        test_copyrights(opts.path, opts.amend, opts.exclude_json)
     except AssertionError:
         sys.exit(1)

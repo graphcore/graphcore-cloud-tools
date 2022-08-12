@@ -6,6 +6,7 @@ import sys
 from examples_utils.benchmarks.run_benchmarks import benchmarks_parser, run_benchmarks
 from examples_utils.benchmarks.logging_utils import configure_logger
 from examples_utils.load_lib_utils.cli import load_lib_build_parser, load_lib_builder_run
+from examples_utils.testing.test_copyright import copyright_argparser, test_copyrights
 
 
 def main(raw_args):
@@ -20,6 +21,9 @@ def main(raw_args):
         'benchmark', description="Run applications benchmarks from the application's root directory.")
     benchmarks_parser(benchmarks_subparser)
 
+    copyright_subparser = subparsers.add_parser('test_copyright', description="Run copyright header test.")
+    copyright_argparser(copyright_subparser)
+
     args = parser.parse_args(raw_args[1:])
 
     if len(raw_args) <= 1:
@@ -31,6 +35,8 @@ def main(raw_args):
     elif args.subparser == 'benchmark':
         configure_logger(args)
         run_benchmarks(args)
+    elif args.subparser == 'test_copyright':
+        test_copyrights(args.path, args.amend, args.exclude_json)
     else:
         raise Exception('Please select: `load_lib_build` or `benchmark`')
 
