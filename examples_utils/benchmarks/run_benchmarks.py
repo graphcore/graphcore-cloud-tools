@@ -448,7 +448,7 @@ def run_benchmarks(args: argparse.ArgumentParser):
     with open(Path(args.log_dir, "benchmark_results.csv"), "w") as csv_file:
         writer = csv.writer(csv_file, quoting=csv.QUOTE_ALL)
         # Use a fixed set of headers, any more detail belongs in the JSON file
-        writer.writerow(["Benchmark name", "Variant name"] + csv_metrics)
+        writer.writerow(["benchmark name", "Variant name"] + csv_metrics)
 
         # Write a row for each variant
         for benchmark, result in results.items():

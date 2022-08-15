@@ -1,0 +1,21 @@
+---
+# This file acts both as a template, demonstrating how to create a yaml file
+# for the platform assessment tools, and also as a suggestion, for users who
+# want to test both the IPUs and the Hosts on a new platform
+
+# Quick test
+tgn:
+  application_name: tgn
+  benchmark: tf1_tgn_train_real_1ipu
+
+# IPU intensive benchmark
+pytorch_bert:
+  application_name: bert
+  benchmark: pytorch_bert_large_packed_pretrain_real_pod16
+  build_steps: "make clean && make"
+
+# Host intensive benchmark
+tf_resnet:
+  application_name: cnns
+  benchmark: tensorflow1_resnet50_train_real_pod16_conv
+  additional_dir: "training"
