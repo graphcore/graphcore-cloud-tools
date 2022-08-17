@@ -9,6 +9,21 @@ from pathlib import Path
 # Get the module logger
 logger = logging.getLogger(__name__)
 
+POPRUN_VARS = {
+    "HOSTS": ("Comma seperated list of IP addresses/names of the machines you "
+              "want to run on. Try to copy across ssh-keys before attempting "
+              "if possible. e.g. 10.1.3.101,10.1.3.102,... or "
+              "lr17-1,lr17-2,..."),
+    "PARTITION": ("Name of the Virtual IPU partition. Can be found with "
+                  "'vipu list partitions'."),
+    "CLUSTER": ("Name of the Virtual IPU cluster. Can be found with 'vipu "
+                "list partition'."),
+    "TCP_IF_INCLUDE": ("The range of network interfaces available to use for "
+                       "poprun to communicate between hosts."),
+    "VIPU_CLI_API_HOST": ("The IP address/name of the HOST where the virtual "
+                          "IPU server is running."),
+}
+
 
 def get_mpinum(command: str) -> int:
     """Get num replicas (mpinum) from the cmd.
@@ -28,6 +43,29 @@ def get_mpinum(command: str) -> int:
         mpinum = 1
 
     return mpinum
+
+
+def check_poprun_env_variables(benchmark_name: str, cmd: str):
+    """Check if poprun environment variables have been set prior to running.
+
+    Args:
+        benchmark_name (str): The name of the benchmark being run
+        cmd (str): The command being run
+
+    """
+
+    # Check if any of the poprun env vars are required but not set
+    missing_env_vars = [
+        env_var for env_var in POPRUN_VARS.keys() if f"${env_var}" in cmd and os.getenv(env_var) is None
+    ]
+    if missing_env_vars:
+        err = (f"{len(missing_env_vars)} environment variables are needed by "
+               f"command {benchmark_name} but are not defined: "
+               f"{missing_env_vars}. Hints: \n")
+        err += "".join([f"\n\t{missing} : {POPRUN_VARS[missing]}" for missing in missing_env_vars])
+
+        logger.error(err)
+        raise EnvironmentError(err)
 
 
 def infer_paths(args: ArgumentParser, benchmark_dict: dict) -> ArgumentParser:

@@ -27,6 +27,7 @@ from examples_utils.benchmarks.distributed_utils import (
 )
 from examples_utils.benchmarks.environment_utils import (
     get_mpinum,
+    check_poprun_env_variables,
     infer_paths,
     merge_environment_variables,
 )
@@ -363,7 +364,9 @@ def run_benchmarks(args: argparse.ArgumentParser):
     results = {}
     output_log_path = Path(args.log_dir, "output.log")
     with open(output_log_path, "w", buffering=1) as listener:
+        print("\n" + "#" * 80)
         logger.info(f"Logs at: {output_log_path}")
+        print("#" * 80 + "\n")
 
         # Only check explicitily listed benchmarks if provided
         if args.benchmark is None:
@@ -411,6 +414,10 @@ def run_benchmarks(args: argparse.ArgumentParser):
             err = "No valid benchmarks selected"
             logger.error(err)
             raise ValueError(err)
+
+        # Early check for poprun calls that might require some env variables
+        for benchmark_name in variant_dictionary:
+            check_poprun_env_variables(benchmark_name, spec[benchmark_name]["cmd"])
 
         # Run each variant
         for benchmark_name in variant_dictionary:

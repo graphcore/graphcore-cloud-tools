@@ -54,13 +54,6 @@ output:
     - `value`: Used when only one instance of that metric will exist in the logs, do no postprocessing on it.
 - The output section will be used when creating a `results.csv` file, where the mapping here will determine how the string that is mapped to by the metric defined will be used as a header in that file
 
-### <ins>Location</ins>
-```
-location:
-    public_examples/applications/pytorch/dino/
-```
-This should be the root dir for the application where `requirements.txt`, the makefile and the scripts required can be found.
-
 ### <ins>Environment</ins>
 ```
 env:
@@ -180,7 +173,6 @@ And so its clear that with long parameter names or values, the variant name (Whi
 Rather than repeating the same fields with the same values in the case where all/multiple benchmarks share them, you can create a commonly used section that can be referenced in benchmarks. For example:
 ```
 common_options: &common_options
-  location: public_examples/applications/pytorch/cnns/train
   env:
     POPLAR_ENGINE_OPTIONS: '{"opt.enableMultiAccessCopies":"false"}'
     PYTORCH_CACHE_DIR: "./pt_cache/"

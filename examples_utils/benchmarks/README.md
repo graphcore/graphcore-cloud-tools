@@ -37,22 +37,11 @@ Points to note are:
 - When profiling, the popvision profile is saved in the current working directory (this will be the application directory where the benchmarks are being run) and `POPLAR_ENGINE_OPTIONS` is given: `"autoReport.all": "true"` and `"autoReport.outputSerializedGraph": "false"`. This is to enable all standard profiling functionality but avoiding making the profile too large.
 
 ## Changelog
-- 07/04 - Initial commits
-- 28/04 - Post-review cleanup and documenting
-- 03/05 - Modularising and adding to examples_utils
-- 17/05 - Added profiling
-- 22/06 - Adding robust pathfidning for ymls/scripts
-- 27/06 - Compile times are now logged to wandb runs where applicable
-- 06/07 - Adding more functionality from internal benchmarking tools
-- 21/07 - Results now stored at the end of benchmarking in CSV and JSON formats
-- 30/07 - Multi-host + Multi-instance benchmarks can now be run with this
+Please see the changelog file for a full history.
 
 ## Future work plans
 - Support for pytest benchmarks
 - Adding profile analysis to profiling
-- Remove wandb by default for external users
-- Filter out convergence testing by default
-- Fix the order in which benchmarks are run to the order they are defined in benchmark yaml files
 - Slack integration
 - Adding checkpoint uploading and offline wandb capabilities
 - Creating documentation
