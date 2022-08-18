@@ -20,16 +20,16 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--spec",
-        required=True,
-        type=str,
-        help="Path to yaml file with benchmark spec",
-    )
-    parser.add_argument(
         "--sdk-path",
         required=True,
         type=str,
         help="Path to the SDK root dir used for benchmarking",
+    )
+    parser.add_argument(
+        "--spec",
+        default=Path(Path(__file__).resolve().parent, "./assess_platform_benchmarks.yml"),
+        type=str,
+        help="Path to yaml file with benchmark spec",
     )
     args = parser.parse_args()
 

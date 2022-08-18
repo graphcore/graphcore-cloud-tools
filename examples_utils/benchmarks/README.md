@@ -27,6 +27,8 @@ python3 -m examples_utils benchmark --spec /path/to/application/benchmarks.yml -
 python3 -m examples_utils benchmark --spec /path/to/application/benchmarks.yml /path/to/another/application/benchmarks.yml
 ```
 
+NOTE: if running using code from a custom examples directory (moved or renamed etc.) then please pass the `--examples-location` argument and provide the path to the directory containing the custom examples directory.
+
 ## Other functionality
 In addition to the logs and metrics already recorded, there are a few other features included for making benchmarking easier and more customisable. Please see the output of 'python3 -m examples_utils benchmark -help' for more info
 

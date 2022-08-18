@@ -10,4 +10,6 @@
 - 30/07 - Multi-host + Multi-instance benchmarks can now be run with this
 - 02/08 - Benchmark ordering, wandb default behaviour and other minor fixes
 - 04/08 - More robust pathfinding capabilities to avoid excessive user input
-- 09/08 - Adding a poprun early warning system to demistify poprun errors, and other small QoL fixes 
+- 15/08 - Adding platform assessment tools as a set of scripts only
+- 17/08 - Adding a poprun early warning system to demistify poprun errors, and other small QoL fixes
+- 18/08 - Adding documentation for platform assessment tools
