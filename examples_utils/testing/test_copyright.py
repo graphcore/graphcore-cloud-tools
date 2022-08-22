@@ -8,11 +8,19 @@ import re
 import sys
 import configparser
 import json
+import logging
 
 C_FILE_EXTS = ['c', 'cpp', 'C', 'cxx', 'c++', 'h', 'hpp']
 
+EXT_TO_LANGUAGE = {'py': 'python', **{ext: 'c' for ext in C_FILE_EXTS}}
 
-def check_file(path, language, amend):
+
+def check_file(path, amend):
+    logging.debug(f"Checking: {path}")
+
+    ext = path.split('.')[-1]
+    language = EXT_TO_LANGUAGE[ext]
+
     if os.stat(path).st_size == 0:
         # Empty file
         return True
@@ -20,12 +28,12 @@ def check_file(path, language, amend):
     comment = "#" if language == "python" else "//"
     found_copyright = False
     first_line_index = 0
-    line = ''
+    line = '\n'
     with open(path, "r") as f:
         regexp = r"{} Copyright \(c\) \d+ Graphcore Ltd. All (r|R)ights (r|R)eserved.".format(comment)
 
         # Skip blank, comments and shebang
-        while (line == '' or line.startswith(comment) or line.startswith("#!")) and not re.match(regexp, line):
+        while (line == '\n' or line.startswith(comment) or line.startswith("#!")) and not re.match(regexp, line):
             if line.startswith("#!"):
                 first_line_index += 1
             line = f.readline()
@@ -46,8 +54,10 @@ def check_file(path, language, amend):
                 print(line[:-1])
                 index += 1
 
+        logging.debug(f"File fails: {path}")
         return False
 
+    logging.debug(f"File passes: {path}")
     return True
 
 
@@ -66,42 +76,54 @@ def read_git_submodule_paths():
 
 def test_copyrights(root_path, amend=False, exclude_josn=None):
     """A test to ensure that every source file has the correct Copyright"""
-    git_module_paths = read_git_submodule_paths()
-
-    root_path = os.path.abspath(root_path)
-
-    if exclude_josn is not None:
-        with open(exclude_josn) as f:
-            exclude = json.load(f)
-        exclude = exclude['exclude']
-    else:
-        exclude = []
-
     bad_files = []
-    excluded = [os.path.join(root_path, p) for p in exclude]
-    for path, _, files in os.walk(root_path):
-        for file_name in files:
-            file_path = os.path.join(path, file_name)
 
-            if file_path in excluded:
-                continue
+    if os.path.isfile(root_path):
+        if not check_file(root_path, amend):
+            bad_files.append(root_path)
 
-            # CMake builds generate .c and .cpp files
-            # so we need to exclude all those:
-            if '/CMakeFiles/' in file_path:
-                continue
+    else:
+        git_module_paths = read_git_submodule_paths()
 
-            # Also exclude git submodules from copyright checks:
-            if any(path in file_path for path in git_module_paths):
-                continue
+        logging.info(f"Git submodule paths to exclude: {git_module_paths}")
+        git_module_paths = set(git_module_paths)
 
-            if file_name.endswith('.py'):
-                if not check_file(file_path, "python", amend):
-                    bad_files.append(file_path)
+        root_path = os.path.abspath(root_path)
 
-            if file_name.split('.')[-1] in C_FILE_EXTS:
-                if not check_file(file_path, "c", amend):
-                    bad_files.append(file_path)
+        if exclude_josn is not None:
+            with open(exclude_josn) as f:
+                exclude = json.load(f)
+            exclude = exclude['exclude']
+        else:
+            exclude = []
+        exclude = [os.path.join(root_path, p) for p in exclude]
+
+        logging.debug(f"Exclude file list: {exclude}")
+
+        # Search directories for files
+        files = []
+        for root, dirs, file_paths in os.walk(root_path, topdown=True, followlinks=False):
+            # Modifying dirs in-place will prune the directories visited by os.walk
+            dirs[:] = list(set(dirs).difference(git_module_paths))
+            files += [os.path.join(root, path) for path in file_paths]
+
+        # Remove excluded
+        files = set(files).difference(set(exclude))
+
+        # CMake builds generate .c and .cpp files
+        # so we need to exclude all those:
+        files = [file for file in files if '/CMakeFiles/' not in file]
+
+        # Only include files with lang ext
+        files = [file for file in files if file.split('.')[-1] in EXT_TO_LANGUAGE]
+
+        logging.debug(f"Files to check: {files}")
+        logging.info(f"Number of files to check: {len(files)}")
+
+        # Check files
+        for file in files:
+            if not check_file(file, amend):
+                bad_files.append(file)
 
     if len(bad_files) != 0:
         sys.stderr.write("ERROR: The following files do not have " "copyright notices:\n\n")
@@ -114,22 +136,34 @@ def test_copyrights(root_path, amend=False, exclude_josn=None):
 
 def copyright_argparser(parser: argparse.ArgumentParser):
     """Add load lib build CLI commands to argparse parser"""
-    parser.add_argument('path',
-                        nargs='?',
-                        default='.',
-                        help='Directory to start searching for files. '
-                        'Defaults to current working directory.')
+    parser.add_argument(
+        'path',
+        nargs='?',
+        default='.',
+        help='Directory to start searching for files. '
+        'Defaults to current working directory. You can also specify a file if you would like to only check that file.')
     parser.add_argument("--amend", action="store_true", help="Amend copyright headers in files.")
     parser.add_argument("--exclude_json",
                         default=None,
-                        help="Provide a path to a JSON file which include files to exclude")
+                        help="Provide a path to a JSON file which include files to exclude. "
+                        "The paths should be relative to the current working directory.")
+    parser.add_argument("--log_level",
+                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                        type=str,
+                        default='WARNING',
+                        help=("Loging level for the app. "))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Copyright header test")
     copyright_argparser(parser)
-
     opts = parser.parse_args()
+
+    logging.basicConfig(level=opts.log_level,
+                        format='%(asctime)s %(levelname)s: %(message)s',
+                        datefmt="%Y-%m-%d %H:%M:%S")
+    logging.info(f"Staring. Process id: {os.getpid()}")
+
     try:
         test_copyrights(opts.path, opts.amend, opts.exclude_json)
     except AssertionError:
