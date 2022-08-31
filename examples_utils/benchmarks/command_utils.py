@@ -246,17 +246,16 @@ def get_poprun_hosts(cmd: list) -> list:
     possible_hostnames = []
     possible_hostnames.append(os.uname()[1])
 
-    # Query ifconfig for internal/external IPs
-    for category in ["eno1", "enp161s0f1", "enp65s0f0np0"]:
-        try:
-            process = subprocess.Popen(
-                ["ifconfig", category],
-                stdout=subprocess.PIPE,
-            )
-            out, _ = process.communicate()
-        except:
-            out = "inet "
-        possible_hostnames.append(str(re.search(r"inet *(.*?) ", str(out)).group(1)))
+    # Query system for internal/external IPs
+    try:
+        possible_hostnames, _ = subprocess.Popen(
+            ["hostname", "-I"],
+            stdout=subprocess.PIPE,
+        ).communicate()
+        # All possible IPs (formatted output)
+        possible_hostnames = str(possible_hostnames.decode("utf-8")).split(" ")[:-1]
+    except:
+        possible_hostnames = [""]
 
     # Remove this machines name/IP from the list
     for hostname in poprun_hostnames:
