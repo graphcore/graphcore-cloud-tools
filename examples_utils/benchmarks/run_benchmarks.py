@@ -10,7 +10,7 @@ import subprocess
 import sys
 import threading
 from collections import OrderedDict
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import TextIOWrapper
 from pathlib import Path
 from typing import Tuple
@@ -26,8 +26,9 @@ from examples_utils.benchmarks.distributed_utils import (
     setup_distributed_filesystems,
 )
 from examples_utils.benchmarks.environment_utils import (
-    get_mpinum,
     check_poprun_env_variables,
+    enter_benchmark_dir,
+    get_mpinum,
     infer_paths,
     merge_environment_variables,
 )
@@ -48,7 +49,7 @@ from examples_utils.benchmarks.profiling_utils import add_profiling_vars
 logger = logging.getLogger()
 
 
-def run_and_monitor_progress(cmd: list, listener: TextIOWrapper, timeout: int, **kwargs) -> Tuple[str, str, int]:
+def run_and_monitor_progress(cmd: list, listener: TextIOWrapper, timeout: int = None, **kwargs) -> Tuple[str, str, int]:
     """Run the benchmark monitor progress.
 
     Args:
@@ -102,44 +103,34 @@ def run_and_monitor_progress(cmd: list, listener: TextIOWrapper, timeout: int, *
     t = threading.Thread(target=proc_thread, name="proc_thread")
     t.start()
 
-    timeouts = [0.5, 1, 2, 3, 6, 15, 30, 60]
-    tcount = 0
-    ts_per_line = 40
     total_time = 0
     timeout_error = False
     while True:
-        # show progress
-        tindex = min(int(tcount / ts_per_line), len(timeouts) - 1)
-        t.join(timeouts[tindex])
-        total_time += timeouts[tindex]
-
-        # Stop monitoring progress when benchmarking process thread dies
+        # Check if benchmarking process thread has terminated every second
+        t.join(1)
         if not t.is_alive():
             break
+        total_time += 1
 
         # Monitor if benchmark has timed out
-        if timeout and total_time >= timeout:
-            logger.critical("TIMEOUT")
+        if (timeout is not None) and (total_time >= timeout):
+            logger.error("TIMEOUT")
             timeout_error = True
             proc.kill()
 
-        if tcount % ts_per_line == 0:
-            if tcount != 0:
-                sys.stderr.write("\n")
-            sys.stderr.write("                        ")
-        sys.stderr.write(".")
+        sys.stderr.write("\r")
+        sys.stderr.write(f"\tBenchmark elapsed time: {str(timedelta(seconds=total_time))} ({total_time} seconds)")
         sys.stderr.flush()
-        tcount += 1
 
-    if tcount != 0:
-        sys.stderr.write("\n")
+    sys.stderr.write("\r")
+    sys.stderr.write("\n")
     # ---------------------------------------------------------------------------
 
     # return the info of the running of the benchmark
     output, err = "".join(outs[0]), "".join(outs[1])
     exitcode = proc.returncode
     if timeout_error:
-        err = "Timeout"
+        err += f"\nTimeout ({timeout})\n"
 
     return (output, err, exitcode)
 
@@ -191,6 +182,9 @@ def run_benchmark_variant(
         benchmark_dict["derived"] = {}
         logger.info("Removed data metrics for compile only benchmark")
 
+    # Change cwd to where the benchmarks file was
+    enter_benchmark_dir(benchmark_dict)
+
     # Create the actual command for the variant
     variant_command = formulate_benchmark_command(benchmark_dict, variant_dict, args)
 
@@ -198,7 +192,7 @@ def run_benchmark_variant(
     # into a list, respecting things like quotes, like the shell would
     cmd = shlex.split(os.path.expandvars(variant_command))
 
-    # Define where the benchmark should be run (dir containing public_examples)
+    # Define where the benchmark should be run (dir containing examples)
     cwd = str(Path.cwd().resolve())
     logger.info(f"\tcwd = '{cwd}'")
 
@@ -211,9 +205,9 @@ def run_benchmark_variant(
 
     # Set the environment variables
     new_env = {}
-    new_env["POPLAR_LOG_LEVEL"] = "INFO"
+    new_env["POPLAR_LOG_LEVEL"] = args.logging
+    new_env["POPART_LOG_LEVEL"] = args.logging
     new_env["TF_CPP_VMODULE"] = "poplar_compiler=1"
-    new_env["POPART_LOG_LEVEL"] = "INFO"
 
     # Add profiling variables
     if args.profile:
@@ -238,7 +232,7 @@ def run_benchmark_variant(
 
     start_time = datetime.now()
     logger.info(f"Start test: {start_time}")
-    output, err, exitcode = run_and_monitor_progress(
+    stdout, stderr, exitcode = run_and_monitor_progress(
         cmd,
         listener,
         args.timeout,
@@ -271,6 +265,9 @@ def run_benchmark_variant(
         logger.error(err)
 
         if not args.ignore_errors:
+            error_tail = "\n\t" + "\n\t".join(stderr.splitlines()[-10:]) + "\n"
+            logger.error(f"Last 10 lines of stderr from {variant_name}:{error_tail}")
+            sys.excepthook = lambda exctype, exc, traceback: print("{}: {}".format(exctype.__name__, exc))
             raise RuntimeError(err)
         else:
             logger.info("Continuing to next benchmark as `--ignore-error` was passed")
@@ -278,7 +275,7 @@ def run_benchmark_variant(
     # Get 'data' metrics, these are metrics scraped from the log
     results, extraction_failure = extract_metrics(
         benchmark_dict.get("data", {}),
-        output + err,
+        stdout + stderr,
         exitcode,
         get_mpinum(variant_command),
     )
@@ -294,20 +291,20 @@ def run_benchmark_variant(
     # Get compile_time metrics (scraped from the log)
     results = get_results_for_compile_time(
         results,
-        err,
+        stderr,
         exitcode,
     )
 
     # Add compile time results to wandb link, if wandb was imported by app
     if WANDB_AVAILABLE:
-        wandb_link = get_wandb_link(err)
+        wandb_link = get_wandb_link(stderr)
         if wandb_link is not None:
             upload_compile_time(wandb_link, results)
 
     with open(outlog_path, "w") as f:
-        f.write(output)
+        f.write(stdout)
     with open(errlog_path, "w") as f:
-        f.write(err)
+        f.write(stderr)
 
     # Store metrics/details for this variant and return
     variant_result = {
@@ -393,13 +390,17 @@ def run_benchmarks(args: argparse.ArgumentParser):
                 continue
 
             # Enforce DATASETS_DIR set only if this benchmark needs real data
-            if (not "gen" in benchmark_name) and (not "synth" in benchmark_name):
-                datasets_dir = os.getenv("DATASETS_DIR")
-                if datasets_dir is None:
-                    err = ("Datasets directory has not been set.  If the model "
-                           "requires a dataset, please set DATASETS_DIR env at "
-                           "the base of the dataset directory. For example "
-                           "run: 'export DATASETS_DIR=/localdata/datasets/'")
+            if ("gen" not in benchmark_name) and ("synth" not in benchmark_name):
+                if "DATASETS_DIR" not in os.environ:
+                    err = (f"Benchmark '{benchmark_name}' requires a dataset "
+                           "as it is not configured to use generated or "
+                           "synthetic ('gen' or 'synth' in the benchmark name) "
+                           "data. The environment variable 'DATASETS_DIR' is "
+                           "required for locating the dataset for this "
+                           "dataset. Please set the DATASETS_DIR environment "
+                           "variable to be the base of the dataset directory. "
+                           "For example, run: "
+                           "'export DATASETS_DIR=/localdata/datasets/'")
                     logger.error(err)
                     raise ValueError(err)
 

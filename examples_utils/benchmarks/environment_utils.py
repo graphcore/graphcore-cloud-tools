@@ -14,8 +14,8 @@ POPRUN_VARS = {
               "want to run on. Try to copy across ssh-keys before attempting "
               "if possible. e.g. 10.1.3.101,10.1.3.102,... or "
               "lr17-1,lr17-2,..."),
-    "PARTITION": ("Name of the Virtual IPU partition. Can be found with "
-                  "'vipu list partitions'."),
+    "IPUOF_VIPU_API_PARTITION_ID": ("Name of the Virtual IPU partition. Can be "
+                                    "found with 'vipu list partitions'."),
     "CLUSTER": ("Name of the Virtual IPU cluster. Can be found with 'vipu "
                 "list partition'."),
     "TCP_IF_INCLUDE": ("The range of network interfaces available to use for "
@@ -23,6 +23,59 @@ POPRUN_VARS = {
     "VIPU_CLI_API_HOST": ("The IP address/name of the HOST where the virtual "
                           "IPU server is running."),
 }
+
+
+def check_poprun_env_variables(benchmark_name: str, cmd: str):
+    """Check if poprun environment variables have been set prior to running.
+
+    Args:
+        benchmark_name (str): The name of the benchmark being run
+        cmd (str): The command being run
+
+    """
+
+    # If PARTITION exists in env but IPUOF_VIPU_API_PARTITION_ID isnt, set it
+    # to the existing value
+    if ("PARTITION" in os.environ) and ("IPUOF_VIPU_API_PARTITION_ID" not in os.environ):
+        os.environ["IPUOF_VIPU_API_PARTITION_ID"] = os.environ["PARTITION"]
+
+    # Check if any of the poprun env vars are required but not set
+    missing_env_vars = [
+        env_var for env_var in POPRUN_VARS.keys() if f"${env_var}" in cmd and os.getenv(env_var) is None
+    ]
+    if missing_env_vars:
+        err = (f"{len(missing_env_vars)} environment variables are needed by "
+               f"command {benchmark_name} but are not defined: "
+               f"{missing_env_vars}. Hints: \n")
+        err += "".join([f"\n\t{missing} : {POPRUN_VARS[missing]}" for missing in missing_env_vars])
+
+        logger.error(err)
+        raise EnvironmentError(err)
+
+
+def enter_benchmark_dir(benchmark_dict: dict):
+    """Find and change to the path required to run the benchmark.
+
+    Notes:
+        For examples where the directory structure is non-standard (does not
+        follow the <category>/<model>/<framework>/'train.py' etc. convention),
+        the benchmark specification in the benchmarks.yml file will contain an
+        additional field 'location' which will inform this sub-module on how to
+        locate the python file that needs to be called.
+
+    Args:
+        benchmark_dict (dict): Dict created when evaluating the benchmark spec
+
+    """
+
+    # Find the root dir of the benchmarks.yml file
+    benchmark_path = Path(benchmark_dict["benchmark_path"]).parent
+
+    # If a special path is required, find and move to that in addition
+    if benchmark_dict.get("location"):
+        benchmark_path = benchmark_path.joinpath(benchmark_dict["location"])
+
+    os.chdir(benchmark_path)
 
 
 def get_mpinum(command: str) -> int:
@@ -43,29 +96,6 @@ def get_mpinum(command: str) -> int:
         mpinum = 1
 
     return mpinum
-
-
-def check_poprun_env_variables(benchmark_name: str, cmd: str):
-    """Check if poprun environment variables have been set prior to running.
-
-    Args:
-        benchmark_name (str): The name of the benchmark being run
-        cmd (str): The command being run
-
-    """
-
-    # Check if any of the poprun env vars are required but not set
-    missing_env_vars = [
-        env_var for env_var in POPRUN_VARS.keys() if f"${env_var}" in cmd and os.getenv(env_var) is None
-    ]
-    if missing_env_vars:
-        err = (f"{len(missing_env_vars)} environment variables are needed by "
-               f"command {benchmark_name} but are not defined: "
-               f"{missing_env_vars}. Hints: \n")
-        err += "".join([f"\n\t{missing} : {POPRUN_VARS[missing]}" for missing in missing_env_vars])
-
-        logger.error(err)
-        raise EnvironmentError(err)
 
 
 def infer_paths(args: ArgumentParser, benchmark_dict: dict) -> ArgumentParser:
