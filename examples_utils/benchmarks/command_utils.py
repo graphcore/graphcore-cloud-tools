@@ -153,9 +153,10 @@ def formulate_benchmark_command(
     else:
         py_name = "python"
     called_file = cmd_parts[cmd_parts.index(py_name) + 1]
-
-    resolved_file = str(Path(called_file).resolve())
-    cmd = cmd.replace(called_file, resolved_file)
+    # if the first argument is `-m` we are calling a module and shouldn't resolve it
+    if called_file != "-m":
+        resolved_file = str(Path(called_file).resolve())
+        cmd = cmd.replace(called_file, resolved_file)
 
     if not args.allow_wandb and "--wandb" in cmd:
         logger.info("'--allow-wandb' was not passed, however '--wandb' is an "
@@ -197,7 +198,7 @@ def get_poprun_hosts(cmd: list) -> list:
 
     Returns:
         poprun_hostnames (list): names/IPs of poprun hosts
-    
+
     """
 
     # Find where in the command list "poprun", "host" and "python" exist

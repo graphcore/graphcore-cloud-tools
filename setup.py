@@ -29,6 +29,12 @@ def read_requirements(path):
     return [line.strip() for line in read(path).split("\n") if not line.startswith(('"', "#", "-"))]
 
 
+extra_requires = {
+    "dev": read_requirements("requirements-dev.txt"),
+    "jupyter": read_requirements("requirements-jupyter.txt"),
+}
+extra_requires["all"] = extra_requires["dev"] + extra_requires["jupyter"]
+
 setup(
     name='examples-utils',
     description="Utils and common code for Graphcore's example applications",
@@ -51,7 +57,7 @@ setup(
         "Programming Language :: Python :: 3",
     ],
     install_requires=read_requirements("requirements.txt"),
-    extras_require={"dev": read_requirements("requirements-dev.txt")},
+    extras_require=extra_requires,
     packages=['examples_utils'],
     package_data={
         'examples_utils':
