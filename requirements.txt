@@ -1,3 +1,4 @@
+awscli==1.24.10
 cppimport>=22.07.17
 filelock
 psutil>=5.7.0
