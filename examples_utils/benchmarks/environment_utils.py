@@ -3,6 +3,8 @@ import copy
 import logging
 import os
 import re
+import sys
+import subprocess
 from argparse import ArgumentParser
 from pathlib import Path
 
@@ -186,6 +188,16 @@ def infer_paths(args: ArgumentParser, benchmark_dict: dict) -> ArgumentParser:
     args.venv_path = str(Path(venv_path).parents[1].resolve())
 
     return args
+
+
+def get_git_commit_hash() -> str:
+    # assumed we're in the top level directory of the git repo
+    try:
+        process = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode(sys.stdout.encoding).strip()
+        return str(process)
+    except Exception as error:
+        logger.warning(f"Failed to get git revision: {error}")
+        return "Not a git repo"
 
 
 def merge_environment_variables(new_env: dict, benchmark_spec: dict) -> dict:

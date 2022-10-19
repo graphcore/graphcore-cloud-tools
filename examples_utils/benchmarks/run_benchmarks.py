@@ -27,6 +27,7 @@ from examples_utils.benchmarks.distributed_utils import (
 from examples_utils.benchmarks.environment_utils import (
     check_env,
     enter_benchmark_dir,
+    get_git_commit_hash,
     get_mpinum,
     infer_paths,
     merge_environment_variables,
@@ -45,6 +46,7 @@ from examples_utils.benchmarks.metrics_utils import (
     derive_metrics,
     extract_metrics,
     get_results_for_compile_time,
+    additional_metrics,
 )
 from examples_utils.benchmarks.profiling_utils import add_profiling_vars
 
@@ -185,6 +187,8 @@ def run_benchmark_variant(
 
     # Change cwd to where the benchmarks file was
     enter_benchmark_dir(benchmark_dict)
+    # get the hash of the head commit of the benchmark directory
+    git_commit_hash = get_git_commit_hash()
 
     # Create the actual command for the variant
     variant_command = formulate_benchmark_command(benchmark_dict, variant_dict, args)
@@ -293,6 +297,15 @@ def run_benchmark_variant(
         exitcode,
         get_mpinum(variant_command),
     )
+
+    if args.additional_metrics:
+        results = additional_metrics(
+            results,
+            total_runtime,
+            str(' '.join(cmd)),
+            exitcode,
+            new_env,  # just additional environment variables
+            git_commit_hash)
 
     # Get 'derived' metrics, these are metrics 'derived' from other metrics
     results, derivation_failure = derive_metrics(
@@ -492,6 +505,7 @@ def run_benchmarks(args: argparse.ArgumentParser):
                 logger.info(f"\t{name}")
 
             result_list = []
+            benchmark_result = dict()
             for variant in variant_dictionary[benchmark_name]:
                 benchmark_result = run_benchmark_variant(
                     variant["name"],
@@ -508,13 +522,18 @@ def run_benchmarks(args: argparse.ArgumentParser):
     # Print PASSED/FAILED summary
     print_benchmark_summary(results)
 
-    save_results(args.log_dir, results)
+    save_results(args.log_dir, args.additional_metrics, results)
 
 
 def benchmarks_parser(parser: argparse.ArgumentParser):
     """Add benchmarking arguments to argparse parser"""
 
     # Key arguments
+    parser.add_argument(
+        "--additional-metrics",
+        action="store_true",
+        help="Collect additional metrics to the output CSV file",
+    )
     parser.add_argument(
         "--spec",
         required=True,

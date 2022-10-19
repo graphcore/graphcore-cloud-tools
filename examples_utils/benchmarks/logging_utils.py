@@ -135,7 +135,7 @@ def get_wandb_link(stderr: str) -> str:
     return wandb_link
 
 
-def save_results(log_dir: str, results: dict):
+def save_results(log_dir: str, additional_metrics: bool, results: dict):
     """Save benchmark results into files.
 
     Args:
@@ -151,6 +151,12 @@ def save_results(log_dir: str, results: dict):
 
     # Parse summary into CSV and save in logs directory
     csv_metrics = ["throughput", "latency", "total_compiling_time"]
+    if additional_metrics:
+        csv_metrics = [
+            "throughput", "latency", "total_compiling_time", "test_duration", "loss", "result", "cmd", "env",
+            "git_commit_hash"
+        ]
+
     csv_filepath = Path(log_dir, "benchmark_results.csv")
     with open(csv_filepath, "w") as csv_file:
         writer = csv.writer(csv_file, quoting=csv.QUOTE_ALL)
@@ -165,8 +171,6 @@ def save_results(log_dir: str, results: dict):
                 # Find all the metrics we have available from the list defined
                 for metric in csv_metrics:
                     value = list(r["results"].get(metric, {0: None}).values())[0]
-                    if value is not None:
-                        value = float(value)
                     csv_row.append(value)
 
                 writer.writerow(csv_row)
