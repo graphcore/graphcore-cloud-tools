@@ -7,6 +7,7 @@ import shlex
 import subprocess
 import sys
 import threading
+from typing import Union
 from collections import OrderedDict
 from datetime import datetime, timedelta
 from io import TextIOWrapper
@@ -49,6 +50,17 @@ from examples_utils.benchmarks.profiling_utils import add_profiling_vars
 
 # Get the module logger
 logger = logging.getLogger()
+
+
+def should_reattempt_benchmark(variant, output, err, exitcode) -> Union[bool, str]:
+    if "Timeout" in err:
+        return False
+    is_a_notebook = "examples_utils.benchmarks.notebook_utils" in variant["cmd"]
+    if is_a_notebook and "ModuleNotFoundError" in err and exitcode != 0:
+        if "Successfully installed" in output:
+            return "Notebook has installed some packages, need to restart kernel"
+
+    return False
 
 
 def run_and_monitor_progress(cmd: list, listener: TextIOWrapper, timeout: int = None, **kwargs) -> Tuple[str, str, int]:
@@ -228,13 +240,19 @@ def run_benchmark_variant(
         subprocess.check_output([sys.executable, "-m", "pip", "install", "-r", str(reqs)])
 
     logger.info(f"Start test: {start_time}")
-    stdout, stderr, exitcode = run_and_monitor_progress(
-        cmd,
-        listener,
-        args.timeout,
-        cwd=cwd,
-        env=env,
-    )
+    need_to_run = True
+    while need_to_run:
+        stdout, stderr, exitcode = run_and_monitor_progress(
+            cmd,
+            listener,
+            args.timeout,
+            cwd=cwd,
+            env=env,
+        )
+        need_to_run = should_reattempt_benchmark(benchmark_dict, stdout, stderr, exitcode)
+        if need_to_run:
+            logger.info(f"Re-running benchmark because: {need_to_run}")
+
     end_time = datetime.now()
     total_runtime = (end_time - start_time).total_seconds()
     logger.info(f"End test: {end_time}")
