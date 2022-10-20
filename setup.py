@@ -4,6 +4,7 @@ import io
 import os
 from pathlib import Path
 from glob import glob
+import re
 
 from setuptools import find_packages, setup
 
@@ -29,6 +30,19 @@ def read_requirements(path):
     return [line.strip() for line in read(path).split("\n") if not line.startswith(('"', "#", "-"))]
 
 
+def get_version():
+    """Looks for __version__ attribute in top most __init__.py"""
+    version_lines = [l for l in read("examples_utils/__init__.py").splitlines() if re.match("__version__\\s*=", l)]
+    if len(version_lines) != 1:
+        raise ValueError("Cannot identify version: 0 or multiple lines "
+                         f"were identified as candidates: {version_lines}")
+    version_line = version_lines[0]
+    m = re.search(r"['\"]([0-9a-zA-Z\.]*)['\"]", version_line)
+    if not m:
+        raise ValueError(f"Could not identify version in line: {version_line}")
+    return m.groups()[-1]
+
+
 extra_requires = {
     "dev": read_requirements("requirements-dev.txt"),
     "jupyter": read_requirements("requirements-jupyter.txt"),
@@ -37,7 +51,7 @@ extra_requires["all"] = extra_requires["dev"] + extra_requires["jupyter"]
 
 setup(
     name='examples-utils',
-    description="Utils and common code for Graphcore's example applications",
+    description="Utilities, benchmarking and common code for Graphcore's example applications",
     long_description="file: README.md",
     long_description_content_type="text/markdown",
     license="MIT License",
@@ -47,7 +61,7 @@ setup(
     project_urls={
         # "Documentation": "https://graphcore.github.io/examples-utils",
         "Code": "https://github.com/graphcore/examples-utils",
-        # "Issue tracker": "https://github.com/graphcore/examples-utils/issues",
+        "Issue tracker": "https://github.com/graphcore/examples-utils/issues",
     },
     classifiers=[  # Optional
         "Development Status :: 4 - Beta",
@@ -65,4 +79,5 @@ setup(
         [os.path.join(*Path(f).parts[1:]) for f in glob('examples_utils/**/*.py', recursive=True)] +
         [os.path.join(*Path(f).parts[1:]) for f in glob('examples_utils/**/*.cpp', recursive=True)]
     },
+    version=get_version(),
 )
