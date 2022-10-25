@@ -74,8 +74,9 @@ def check_env(args: ArgumentParser, benchmark_name: str, cmd: str):
         # Determine if wandb login has not been done already
         netrc_path = Path(os.environ["HOME"], ".netrc")
         if netrc_path.exists() and os.stat(Path(os.environ["HOME"], ".netrc")).st_size == 0:
+            logger.warn("wandb appears to not have been logged in. Checking "
+                        "for environment variables to be used instead...")
             missing_env_vars.extend([env_var for env_var in WANDB_VARS.keys() if os.getenv(env_var) is None])
-            logger.warn("wandb has not been logged in. Checking for environment variables to be used instead...")
 
     # Check AWSCLI env vars if required
     if "s3" in args.upload_checkpoints:

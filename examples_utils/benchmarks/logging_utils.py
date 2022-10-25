@@ -190,6 +190,16 @@ def upload_checkpoints(upload_targets: list, checkpoint_path: Path, benchmark_pa
 
     """
 
+    # Get confirmation user wants to upload checkpoint (post results), else exit
+    upload_confirmed = input("Upload checkpoints? (y/n): ")
+    while upload_confirmed not in {"y", "n"}:
+        upload_confirmed = input("Please enter either y (yes) or n (no): ")
+
+    if upload_confirmed != "y":
+        logger.warn(f"Checkpoint uploading was refused by user input, skipping "
+                    f"uploading checkpoints at {checkpoint_path}")
+        return
+
     checkpoint_path = str(checkpoint_path)
 
     if "wandb" in upload_targets:
