@@ -12,7 +12,7 @@ from collections import OrderedDict
 from datetime import datetime, timedelta
 from io import TextIOWrapper
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, List, Dict
 
 import yaml
 from examples_utils.benchmarks.command_utils import (
@@ -52,6 +52,9 @@ from examples_utils.benchmarks.profiling_utils import add_profiling_vars
 
 # Get the module logger
 logger = logging.getLogger()
+
+BenchmarkDict = Dict
+# A dictionary which defines a benchmark
 
 
 def should_reattempt_benchmark(variant, output, err, exitcode) -> Union[bool, str]:
@@ -398,27 +401,32 @@ def process_notebook_to_command(variant, name="unknown"):
     return variant
 
 
-def run_benchmarks(args: argparse.ArgumentParser):
+def run_benchmarks(args: argparse.Namespace):
     """Run benchmarks.
 
     Args:
-        args (argparse.ArgumentParser): Arguments passed to run the benchmarks
+        args (argparse.Namespace): Arguments passed to run the benchmarks
             with
 
     """
 
     # Preprocess args to resolve any inconsistencies or cover up any gaps
     args = preprocess_args(args)
-
-    # Resolve paths to benchmarks specs
     args.spec = [str(Path(file).resolve()) for file in args.spec]
+    spec = parse_benchmark_specs(args.spec)
+    run_benchmarks_from_spec(spec, args)
 
-    spec_files = ",".join([str(sf) for sf in args.spec if ".yml" in str(sf)])
-    logger.info(f"Running benchmark suite: '{spec_files}'")
+
+def parse_benchmark_specs(spec_files: List[str]):
+    """Parses a list of benchmark spec files into benchmarks definition"""
+    # Resolve paths to benchmarks specs
+
+    spec_files_str = ",".join([str(sf) for sf in spec_files if ".yml" in str(sf)])
+    logger.info(f"Running benchmark suite: '{spec_files_str}'")
 
     # Load all benchmark configs from all files given
-    spec = {}
-    for spec_file in args.spec:
+    spec: Dict[str, BenchmarkDict] = {}
+    for spec_file in spec_files:
         logger.debug(f"Examining: '{spec_file}'")
         found_benchmarks = yaml.load(open(spec_file).read(), Loader=yaml.FullLoader)
 
@@ -426,7 +434,10 @@ def run_benchmarks(args: argparse.ArgumentParser):
         for _, v in found_benchmarks.items():
             v["benchmark_path"] = spec_file
         spec.update(found_benchmarks)
+    return spec
 
+
+def run_benchmarks_from_spec(spec: Dict[str, BenchmarkDict], args: argparse.Namespace):
     results = {}
     output_log_path = Path(args.log_dir, "output.log")
     with open(output_log_path, "w", buffering=1) as listener:
@@ -523,6 +534,7 @@ def run_benchmarks(args: argparse.ArgumentParser):
     print_benchmark_summary(results)
 
     save_results(args.log_dir, args.additional_metrics, results)
+    return results
 
 
 def benchmarks_parser(parser: argparse.ArgumentParser):

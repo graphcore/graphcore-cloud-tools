@@ -21,12 +21,12 @@ except:
 logger = logging.getLogger(__name__)
 
 
-def configure_logger(args: argparse.ArgumentParser):
+def configure_logger(args: argparse.Namespace):
     """Setup the benchmarks runner logger
 
     Args:
         args (argparse.ArgumentParser): Argument parser used for benchmarking
-    
+
     """
 
     # Setup dir
@@ -55,7 +55,7 @@ def print_benchmark_summary(results: dict):
 
     Args:
         results (dict): Benchmark results dict to create summary from
-    
+
     """
 
     # Print PASS/FAIL statements
@@ -82,7 +82,7 @@ def get_latest_checkpoint_path(checkpoint_root_dir: Path, variant_cmd: str) -> P
     Args:
         checkpoint_root_dir (Path): The path to the benchmarking dir
         variant_cmd (str): The command used for this model run (benchmark)
-    
+
     Returns:
         latest_checkpoint_path (Path): The directory containing all checkpoints
             as specified in the benchmarks.yml (or 'None' if this is not found.)
@@ -179,7 +179,7 @@ def save_results(log_dir: str, additional_metrics: bool, results: dict):
 
 def upload_checkpoints(upload_targets: list, checkpoint_path: Path, benchmark_path: str, checkpoint_dir_depth: int,
                        run_name: str, stderr: str):
-    """Upload checkpoints from model run to 
+    """Upload checkpoints from model run to
 
     Args:
         upload_targets (list): Which targets/locations to upload checkpoints to

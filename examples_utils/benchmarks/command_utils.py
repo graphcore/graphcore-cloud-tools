@@ -3,7 +3,7 @@ import logging
 import os
 import re
 import subprocess
-from argparse import ArgumentParser
+from argparse import Namespace
 from pathlib import Path
 
 # Get the module logger
@@ -121,7 +121,7 @@ def get_benchmark_variants(benchmark_name: str, benchmark_dict: dict) -> list:
 def formulate_benchmark_command(
         benchmark_dict: dict,
         variant_dict: dict,
-        args: ArgumentParser,
+        args: Namespace,
 ) -> str:
     """Create the actual command to be run from an unformatted string.
 
@@ -130,7 +130,7 @@ def formulate_benchmark_command(
             pre-formating to fill in variables
         variant_dict (dict): Variant specification, containing all the actual
             values of the variables to be used to construct this command
-        args (ArgumentParser): Arguments passed to this benchmarking run
+        args (Namespace): Arguments passed to this benchmarking run
 
     Returns:
         cmd (str): The final, formatted command to be run

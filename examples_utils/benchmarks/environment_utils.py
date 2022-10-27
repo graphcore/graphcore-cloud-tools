@@ -5,7 +5,8 @@ import os
 import re
 import sys
 import subprocess
-from argparse import ArgumentParser
+import argparse
+import argparse
 from pathlib import Path
 
 # Get the module logger
@@ -40,11 +41,11 @@ AWSCLI_VARS = {
 }
 
 
-def check_env(args: ArgumentParser, benchmark_name: str, cmd: str):
+def check_env(args: argparse.Namespace, benchmark_name: str, cmd: str):
     """Check if environment has been correctly set up prior to running.
 
     Args:
-        args (ArgumentParser): CLI arguments provided to this benchmarking run
+        args (argparse.Namespace): CLI arguments provided to this benchmarking run
         benchmark_name (str): The name of the benchmark being run
         cmd (str): The command being run
 
@@ -131,7 +132,7 @@ def get_mpinum(command: str) -> int:
 
     Returns:
         mpinum (int): Number of processes passed to mpirun
-    
+
     """
 
     m = re.search(r"mpirun.+--np.(\d*) ", command)
@@ -143,16 +144,16 @@ def get_mpinum(command: str) -> int:
     return mpinum
 
 
-def infer_paths(args: ArgumentParser, benchmark_dict: dict) -> ArgumentParser:
+def infer_paths(args: argparse.Namespace, benchmark_dict: dict) -> argparse.Namespace:
     """Infer paths to key directories based on argument and environment info.
 
     Args:
-        args (ArgumentParser): The arguments passed to this benchmarking run
+        args (argparse.Namespace): The arguments passed to this benchmarking run
         benchmark_dict (dict): The parameters for a particular benchmark
-    
+
     Returns:
-        args (ArgumentParser): args, but with additional paths attributes added
-    
+        args (argparse.Namespace): args, but with additional paths attributes added
+
     """
 
     spec_path = benchmark_dict["benchmark_path"]
@@ -205,13 +206,13 @@ def merge_environment_variables(new_env: dict, benchmark_spec: dict) -> dict:
     """Merge existing environment variables with new ones in the benchmark.
 
     Args:
-        new_env (dict): The new environment variables state to merge into 
+        new_env (dict): The new environment variables state to merge into
             current state
         benchmark_dict (dict): The benchmark entry itself in the yaml file
 
     Returns:
         existing_env (dict): Merged environment state to use for benchmarking
-    
+
     """
 
     # Build and log the additional ENV variables
@@ -231,15 +232,15 @@ def merge_environment_variables(new_env: dict, benchmark_spec: dict) -> dict:
     return existing_env
 
 
-def preprocess_args(args: ArgumentParser) -> ArgumentParser:
+def preprocess_args(args: argparse.Namespace) -> argparse.Namespace:
     """Resolve any gaps or inconsistencies in the arguments provided.
 
     Args:
-        args (ArgumentParser): The arguments passed to this benchmarking run
+        args (argparse.Namespace): The arguments passed to this benchmarking run
 
     Returns:
-        args (ArgumentParser): args, but with any issues resolved
-    
+        args (argparse.Namespace): args, but with any issues resolved
+
     """
 
     # Force allow-wandb if user wants to upload checkpoints to wandb
