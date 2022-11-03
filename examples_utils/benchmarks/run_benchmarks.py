@@ -30,6 +30,7 @@ from examples_utils.benchmarks.environment_utils import (
     get_git_commit_hash,
     get_mpinum,
     infer_paths,
+    expand_environment_variables,
     merge_environment_variables,
     preprocess_args,
 )
@@ -196,21 +197,6 @@ def run_benchmark_variant(
     # Create the actual command for the variant
     variant_command = formulate_benchmark_command(benchmark_dict, variant_dict, args)
 
-    # Expand any environment variables in the command and split the command
-    # into a list, respecting things like quotes, like the shell would
-    cmd = shlex.split(os.path.expandvars(variant_command))
-
-    # Define where the benchmark should be run (dir containing examples)
-    cwd = str(Path.cwd().resolve())
-    logger.info(f"\tcwd = '{cwd}'")
-
-    # Create the log directory
-    variant_log_dir = Path(args.log_dir, variant_name)
-    if not variant_log_dir.exists():
-        variant_log_dir.mkdir(parents=True)
-    outlog_path = Path(variant_log_dir, "stdout.log")
-    errlog_path = Path(variant_log_dir, "stderr.log")
-
     # Set the environment variables
     new_env = {}
     new_env["POPLAR_LOG_LEVEL"] = args.logging
@@ -224,6 +210,21 @@ def run_benchmark_variant(
     # Merge environment variables from benchmark and here with existing
     # environment variables
     env = merge_environment_variables(new_env, benchmark_dict)
+
+    # Expand any environment variables in the command and split the command
+    # into a list, respecting things like quotes, like the shell would
+    cmd = shlex.split(expand_environment_variables(variant_command, env))
+
+    # Define where the benchmark should be run (dir containing examples)
+    cwd = str(Path.cwd().resolve())
+    logger.info(f"\tcwd = '{cwd}'")
+
+    # Create the log directory
+    variant_log_dir = Path(args.log_dir, variant_name)
+    if not variant_log_dir.exists():
+        variant_log_dir.mkdir(parents=True)
+    outlog_path = Path(variant_log_dir, "stdout.log")
+    errlog_path = Path(variant_log_dir, "stderr.log")
 
     # Infer examples, SDK and venv path for this benchmark
     args = infer_paths(args, benchmark_dict)

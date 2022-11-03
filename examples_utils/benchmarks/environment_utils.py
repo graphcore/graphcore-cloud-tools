@@ -202,6 +202,30 @@ def get_git_commit_hash() -> str:
         return "Not a git repo"
 
 
+def expand_environment_variables(cmd: str, new_env: dict) -> str:
+    """Expand environment variables present in the benchmark cmd
+    with the existing environment. Additionally, if the benchmark has 
+    additional environment variables to be used, expand the command 
+    with those variables as well
+
+    Args:
+        cmd (str): benchmark command
+        env (dict): the new environment variables to be used in the subprocess
+    Returns:
+        cmd (str) with environment variables expanded
+    """
+
+    # temporarily set os.environ to new env vars
+    orig_env = os.environ.copy()
+    os.environ = new_env
+
+    # expand vars against the new environment variables and revert os.environ
+    cmd = os.path.expandvars(cmd)
+    os.environ = orig_env
+
+    return cmd
+
+
 def merge_environment_variables(new_env: dict, benchmark_spec: dict) -> dict:
     """Merge existing environment variables with new ones in the benchmark.
 
