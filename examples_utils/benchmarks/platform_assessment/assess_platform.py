@@ -4,8 +4,8 @@ import csv
 import logging
 import subprocess
 import sys
-import yaml
 from pathlib import Path
+import yaml
 
 HEADER_METRICS = ["benchmark name", "variant_name", "throughput", "latency", "total_compiling_time"]
 

@@ -14,6 +14,8 @@ from time import time
 WANDB_AVAILABLE = True
 try:
     import wandb
+    # avoid namespace packages ref: https://peps.python.org/pep-0420/#specification
+    getattr(wandb, "init")
 except:
     WANDB_AVAILABLE = False
 

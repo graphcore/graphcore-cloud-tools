@@ -3,8 +3,9 @@ import logging
 import os
 import re
 import subprocess
-from argparse import Namespace
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
+from typing import Dict, Tuple
 
 # Get the module logger
 logger = logging.getLogger(__name__)
@@ -190,48 +191,98 @@ def formulate_benchmark_command(
     return cmd
 
 
-def get_poprun_hosts(cmd: list) -> list:
+def get_num_ipus(benchmark_name: str) -> int:
+    num_ipus = re.findall(pattern="pod(\d+)", string=benchmark_name)
+    if len(num_ipus) < 0:
+        err = (f"Processing benchmark variant: {benchmark_name}."
+               " Malformed name. Benchmark must specify the number of IPUs "
+               "to be used in the form "
+               "[alphanumeric chars and underscore]+pod(\d+)"
+               "[alphanumeric_chars and underscore]+")
+        logger.error(err)
+        raise ValueError(err)
+    else:
+        num_ipus = num_ipus[0]
+        return num_ipus
+
+
+def query_option_in_cmd(cmd: list, option: list):
+    try:
+        index = cmd.index([x for x in cmd if any(opt in x for opt in option)][0])
+        return index
+    except:
+        return None
+
+
+def get_poprun_config(args, cmd) -> Dict:
+    """Get a poprun configuration dict storing key,value pairs of poprun options 
+    and supplied arguments. We store only a subset of options that are going 
+    to be needed in order to ensure that the job submission environment is correct:
+
+    Args: 
+       args (argparse.Namespace): Arguments passed to run the benchmarks
+            with        
+        cmd: (list): benchmark variant command
+    Return:
+        poprun configuration (Dict): key value pairs of poprun options and arguments    
+    """
+    poprun_config = {}
+
+    # Find where in the command list "poprun" and "python" exist
+    # If poprun is not called, then it cannot be multihost + multi-instance
+    poprun_index = query_option_in_cmd(cmd, ["poprun"])
+    if poprun_index is None:
+        return poprun_config
+
+    # Watch out for "python" instead of "python3"
+    python_index = query_option_in_cmd(cmd, ["python3", "python"])
+
+    parser = ArgumentParser()
+
+    configuration_options = [["-H", "--host"], ["--num-instances"], ["--vipu-server-host"], ["--vipu-server-port"],
+                             ["--vipu-partition"], ["--num-ilds"], ["--vipu-cluster", "--vipu-allocation"],
+                             ["--synchronise-python-venv"], ["--synchronise-poplar-sdk"], ["--distribute-ssh-key"],
+                             ["--mpi-global-args"], ["--mpi-local-args"], ["--host-subnet"]]
+
+    for opt in configuration_options:
+        if "--host" in opt:
+            parser.add_argument(*opt, type=str, default=None)
+        else:
+            parser.add_argument(*opt, type=str, default=None)
+
+    parse_range = cmd[poprun_index + 1:python_index]
+    known_options, other_options = parser.parse_known_args(parse_range)
+    poprun_config = vars(known_options)
+    poprun_config["other_args"] = " ".join(other_options)
+
+    if poprun_config["host"] is not None:
+        poprun_config["host"] = poprun_config["host"].split(",")
+
+    return poprun_config
+
+
+def get_local_poprun_hosts(poprun_config: Dict) -> Tuple[list, int]:
     """Get names/IPs of poprun hosts defined in the `--host` argument.
 
     Args:
-        cmd (list): The command being run, which may include a poprun call that
-            specifies hosts
+        poprun_config (dict): extracted poprun configurations from get_poprun_config
 
     Returns:
         poprun_hostnames (list): names/IPs of poprun hosts
 
     """
 
-    # Find where in the command list "poprun", "host" and "python" exist
-    # If poprun is not called, then it cannot be multihost + multi-instance
-    try:
-        poprun_index = cmd.index("poprun")
-    except:
+    if poprun_config == {}:
         logger.info("poprun not called, assuming this is a single-host, single-instance benchmark.")
         return []
 
     # If "--host" is not defined, then instances must be running on one host
-    try:
-        host_index = cmd.index([x for x in cmd if "--host" in x][0])
-    except:
+    poprun_hostnames = poprun_config["host"]
+    if poprun_hostnames is None:
         logger.info("'--host' argument not provided, assuming all poprun "
-                    "instances defined in this benchmark will run on this host "
+                    "instances defined in this benchmark will run on a single host "
                     "only")
         return []
-
-    # Watch out for "python" instead of "python3"
-    try:
-        python_index = cmd.index("python3")
-    except:
-        python_index = cmd.index("python")
-
-    poprun_hostnames = []
-    if (poprun_index < host_index < python_index):
-        # Hostnames can be passed with "=" or just with a space to the arg
-        if "=" in cmd[host_index]:
-            poprun_hostnames = cmd[host_index].split("=")[1].split(",")
-        else:
-            poprun_hostnames = cmd[host_index + 1].split(",")
 
     num_hosts = len(poprun_hostnames)
 

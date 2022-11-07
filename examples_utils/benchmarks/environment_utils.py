@@ -1,12 +1,11 @@
 # Copyright (c) 2022 Graphcore Ltd. All rights reserved.
+import argparse
 import copy
 import logging
 import os
 import re
-import sys
 import subprocess
-import argparse
-import argparse
+import sys
 from pathlib import Path
 
 # Get the module logger
@@ -40,6 +39,13 @@ AWSCLI_VARS = {
                               "account > security credentials."),
 }
 
+SLURM_ENV_VARS = {
+    "SLURM_HOST_SUBNET_MASK": {
+        "help": "Host subnet mask for all allocations from the SLURM queue.",
+        "default": "ens5"
+    }
+}
+
 
 def check_env(args: argparse.Namespace, benchmark_name: str, cmd: str):
     """Check if environment has been correctly set up prior to running.
@@ -56,18 +62,29 @@ def check_env(args: argparse.Namespace, benchmark_name: str, cmd: str):
     if ("PARTITION" in os.environ) and ("IPUOF_VIPU_API_PARTITION_ID" not in os.environ):
         os.environ["IPUOF_VIPU_API_PARTITION_ID"] = os.environ["PARTITION"]
 
-    # Check if any of the poprun env vars are required but not set
-    missing_poprun_vars = [
-        env_var for env_var in POPRUN_VARS.keys() if f"${env_var}" in cmd and os.getenv(env_var) is None
-    ]
-    if missing_poprun_vars:
-        err = (f"{len(missing_poprun_vars)} environment variables are needed by "
-               f"command {benchmark_name} but are not defined: "
-               f"{missing_poprun_vars}. Hints: \n")
-        err += "".join([f"\n\t{missing} : {POPRUN_VARS[missing]}" for missing in missing_poprun_vars])
+    # if submitting on slurm, these environment variables are ignored
+    if not args.submit_on_slurm:
+        # Check if any of the poprun env vars are required but not set
+        missing_poprun_vars = [
+            env_var for env_var in POPRUN_VARS.keys() if f"${env_var}" in cmd and os.getenv(env_var) is None
+        ]
+        if missing_poprun_vars:
+            err = (f"{len(missing_poprun_vars)} environment variables are needed by "
+                   f"command {benchmark_name} but are not defined: "
+                   f"{missing_poprun_vars}. Hints: \n")
+            err += "".join([f"\n\t{missing} : {POPRUN_VARS[missing]}" for missing in missing_poprun_vars])
 
-        logger.error(err)
-        raise EnvironmentError(err)
+            logger.error(err)
+            raise EnvironmentError(err)
+
+    if args.submit_on_slurm:
+        for k, v in SLURM_ENV_VARS.items():
+            if k not in os.environ:
+                warn_msg = F"{k}: {v['help']} has not been set. Falling back to the default value of: {v['default']}."
+                logger.warn(warn_msg)
+                os.environ[k] = v["default"]
+
+    # TODO: Investigate working of wandb and awscli on SLURM
 
     missing_env_vars = []
     # Check wandb variables if required
@@ -180,7 +197,7 @@ def infer_paths(args: argparse.Namespace, benchmark_dict: dict) -> argparse.Name
                "environment (use 'source' when enabling/activating).")
         logger.error(err)
         raise EnvironmentError(err)
-    args.sdk_path = str(Path(sdk_path).parents[1].resolve())
+    args.sdk_path = str(Path(sdk_path).parent.resolve())
 
     # Find based on the required environment variable when a venv is activated
     venv_path = os.getenv("VIRTUAL_ENV")
@@ -192,7 +209,7 @@ def infer_paths(args: argparse.Namespace, benchmark_dict: dict) -> argparse.Name
                "'source' when enabling/activating).")
         logger.error(err)
         raise EnvironmentError(err)
-    args.venv_path = str(Path(venv_path).parents[1].resolve())
+    args.venv_path = str(Path(venv_path).resolve())
 
     return args
 

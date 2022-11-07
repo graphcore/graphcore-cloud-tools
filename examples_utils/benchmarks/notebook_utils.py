@@ -1,13 +1,13 @@
 # Copyright (c) 2022 Graphcore Ltd. All rights reserved.
-import os
 import argparse
+import os
 
 try:
     import nbformat
-    from nbconvert.preprocessors import ExecutePreprocessor, CellExecutionError
     from nbconvert import Exporter
-    from nbformat import NotebookNode
     from nbconvert.exporters.exporter import ResourcesDict
+    from nbconvert.preprocessors import CellExecutionError, ExecutePreprocessor
+    from nbformat import NotebookNode
 except (ImportError, ModuleNotFoundError) as error:
     from . import _incorrect_requirement_variant_error
     raise _incorrect_requirement_variant_error from error
