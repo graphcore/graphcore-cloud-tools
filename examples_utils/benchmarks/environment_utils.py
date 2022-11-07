@@ -115,13 +115,18 @@ def enter_benchmark_dir(benchmark_dict: dict):
     """
 
     # Find the root dir of the benchmarks.yml file
-    benchmark_path = Path(benchmark_dict["benchmark_path"]).parent
+    if benchmark_dict.get("reference_directory"):
+        benchmark_path = Path(benchmark_dict["reference_directory"])
+    else:
+        benchmark_path = Path(benchmark_dict["benchmark_path"]).parent
 
     # If a special path is required, find and move to that in addition
     if benchmark_dict.get("location"):
         benchmark_path = benchmark_path.joinpath(benchmark_dict["location"])
-
+    current_working_dir = str(Path(os.curdir).resolve())
+    logger.debug(f"Entering {benchmark_path}")
     os.chdir(benchmark_path)
+    return current_working_dir
 
 
 def get_mpinum(command: str) -> int:

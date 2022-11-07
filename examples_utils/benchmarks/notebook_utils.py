@@ -9,9 +9,8 @@ try:
     from nbformat import NotebookNode
     from nbconvert.exporters.exporter import ResourcesDict
 except (ImportError, ModuleNotFoundError) as error:
-    raise ModuleNotFoundError("To use notebook utilities `examples_utils` needs to have been installed with "
-                              "the [jupyter] set of requirements, reinstall the package with"
-                              " `pip install examples_utils[jupyter]`") from error
+    from . import _incorrect_requirement_variant_error
+    raise _incorrect_requirement_variant_error from error
 
 DEFAULT_TIMEOUT = 600
 
