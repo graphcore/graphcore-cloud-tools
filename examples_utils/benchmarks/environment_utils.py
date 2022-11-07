@@ -1,4 +1,5 @@
 # Copyright (c) 2022 Graphcore Ltd. All rights reserved.
+from typing import Optional, List
 import argparse
 import copy
 import logging
@@ -10,6 +11,24 @@ from pathlib import Path
 
 # Get the module logger
 logger = logging.getLogger(__name__)
+
+
+def parse_vipu_server() -> Optional[str]:
+    out = subprocess.check_output(["vipu", "--server-version"])
+    # Sample output
+    # version: 1.18.0
+    # host: localhost:8090
+    out = out.decode()
+    m = re.search("host: (.*):", out)
+    if not m:
+        err = ("vipu --server-version output could not be parsed. Could not identify the"
+               " host of the V-IPU server, please set the IPUOF_VIPU_API_HOST environment"
+               " variable according to the V-IPU documentation. "
+               f"vipu --server-version returned:\n{out}")
+        logger.error(err)
+        return None
+    return m.groups()[0]
+
 
 POPRUN_VARS = {
     "HOSTS": ("Comma seperated list of IP addresses/names of the machines you want "
@@ -23,6 +42,15 @@ POPRUN_VARS = {
                        "communicate between hosts."),
     "VIPU_CLI_API_HOST": ("The IP address/name of the HOST where the virtual IPU server is "
                           "running."),
+}
+
+# Values must be a tuple of strings or None, or a function to generate them
+FALLBACK_VAR_FUNCTIONS = {
+    "VIPU_CLI_API_HOST": (
+        os.getenv("IPUOF_VIPU_API_HOST"),
+        parse_vipu_server,
+    ),
+    "IPUOF_VIPU_API_PARTITION_ID": (os.getenv("PARTITION"), )
 }
 
 WANDB_VARS = {
@@ -47,6 +75,35 @@ SLURM_ENV_VARS = {
 }
 
 
+def _check_cmd_for_missing_poprun_vars(benchmark_name: str, cmd: str):
+    # Check if any of the poprun env vars are required but not set
+    missing_poprun_vars: List[str] = []
+    for env_var in POPRUN_VARS.keys():
+        not_in_cmd = not (f"${env_var}" in cmd or f"${{{env_var}}}" in cmd)
+        is_set = os.getenv(env_var) is not None
+        if not_in_cmd or is_set:
+            continue
+        # Try to find a fallback variable or function
+        if env_var in FALLBACK_VAR_FUNCTIONS:
+            for fallback in FALLBACK_VAR_FUNCTIONS[env_var]:
+                fallback_val = fallback() if callable(fallback) else fallback
+                if fallback_val is not None:
+                    # Fallbacks set the environment variable
+                    os.environ[env_var] = fallback_val
+                    break
+        if os.getenv(env_var) is None:
+            missing_poprun_vars.append(env_var)
+
+    if missing_poprun_vars:
+        err = (f"{len(missing_poprun_vars)} environment variables are needed by "
+               f"command {benchmark_name} but are not defined: "
+               f"{missing_poprun_vars}. Hints: \n")
+        err += "".join([f"\n\t{missing} : {POPRUN_VARS[missing]}" for missing in missing_poprun_vars])
+
+        logger.error(err)
+        raise EnvironmentError(err)
+
+
 def check_env(args: argparse.Namespace, benchmark_name: str, cmd: str):
     """Check if environment has been correctly set up prior to running.
 
@@ -57,25 +114,9 @@ def check_env(args: argparse.Namespace, benchmark_name: str, cmd: str):
 
     """
 
-    # If PARTITION exists in env but IPUOF_VIPU_API_PARTITION_ID isnt, set it
-    # to the existing value
-    if ("PARTITION" in os.environ) and ("IPUOF_VIPU_API_PARTITION_ID" not in os.environ):
-        os.environ["IPUOF_VIPU_API_PARTITION_ID"] = os.environ["PARTITION"]
-
     # if submitting on slurm, these environment variables are ignored
     if not args.submit_on_slurm:
-        # Check if any of the poprun env vars are required but not set
-        missing_poprun_vars = [
-            env_var for env_var in POPRUN_VARS.keys() if f"${env_var}" in cmd and os.getenv(env_var) is None
-        ]
-        if missing_poprun_vars:
-            err = (f"{len(missing_poprun_vars)} environment variables are needed by "
-                   f"command {benchmark_name} but are not defined: "
-                   f"{missing_poprun_vars}. Hints: \n")
-            err += "".join([f"\n\t{missing} : {POPRUN_VARS[missing]}" for missing in missing_poprun_vars])
-
-            logger.error(err)
-            raise EnvironmentError(err)
+        _check_cmd_for_missing_poprun_vars(benchmark_name, cmd)
 
     if args.submit_on_slurm:
         for k, v in SLURM_ENV_VARS.items():
@@ -226,8 +267,8 @@ def get_git_commit_hash() -> str:
 
 def expand_environment_variables(cmd: str, new_env: dict) -> str:
     """Expand environment variables present in the benchmark cmd
-    with the existing environment. Additionally, if the benchmark has 
-    additional environment variables to be used, expand the command 
+    with the existing environment. Additionally, if the benchmark has
+    additional environment variables to be used, expand the command
     with those variables as well
 
     Args:
