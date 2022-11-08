@@ -1,13 +1,18 @@
 # Copyright (c) 2022 Graphcore Ltd. All rights reserved.
 
+_MISSING_REQUIREMENTS = {}
 import argparse
 import sys
 
-from examples_utils.benchmarks.run_benchmarks import benchmarks_parser, run_benchmarks
-from examples_utils.benchmarks.requirements_utils import platform_parser, assess_platform
-from examples_utils.benchmarks.logging_utils import configure_logger
-from examples_utils.load_lib_utils.cli import load_lib_build_parser, load_lib_builder_run
-from examples_utils.testing.test_copyright import copyright_argparser, test_copyrights
+from .benchmarks.run_benchmarks import benchmarks_parser, run_benchmarks
+from .benchmarks.logging_utils import configure_logger
+from .load_lib_utils.cli import load_lib_build_parser, load_lib_builder_run
+from .testing.test_copyright import copyright_argparser, test_copyrights
+try:
+    from .benchmarks.requirements_utils import platform_parser, assess_platform
+except ModuleNotFoundError as error:
+    from .benchmarks import _incorrect_requirement_variant_error
+    _MISSING_REQUIREMENTS["jupyter"] = (_incorrect_requirement_variant_error, error)
 
 
 def main(raw_args):
@@ -23,7 +28,8 @@ def main(raw_args):
     benchmarks_parser(benchmarks_subparser)
     platform_assessment_subparser = subparsers.add_parser(
         'platform_assessment', description="Run applications benchmarks from arbitrary directories and platforms.")
-    platform_parser(platform_assessment_subparser)
+    if "jupyter" not in _MISSING_REQUIREMENTS:
+        platform_parser(platform_assessment_subparser)
 
     copyright_subparser = subparsers.add_parser('test_copyright', description="Run copyright header test.")
     copyright_argparser(copyright_subparser)
@@ -40,6 +46,8 @@ def main(raw_args):
         configure_logger(args)
         run_benchmarks(args)
     elif args.subparser == 'platform_assessment':
+        if "jupyter" in _MISSING_REQUIREMENTS:
+            raise _MISSING_REQUIREMENTS['jupyter'][0] from _MISSING_REQUIREMENTS['jupyter'][1]
         configure_logger(args)
         assess_platform(args)
     elif args.subparser == 'test_copyright':
