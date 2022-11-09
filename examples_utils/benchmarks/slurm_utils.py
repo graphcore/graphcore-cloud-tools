@@ -15,16 +15,16 @@ from io import TextIOWrapper
 from typing import Tuple, Dict
 from pathlib import Path
 import shutil
+import shlex
 
 from examples_utils.benchmarks.command_utils import (get_num_ipus, query_option_in_cmd)
+
+# Get the module logger
+logger = logging.getLogger(__name__)
 
 
 class SlurmBenchmarkError(Exception):
     pass
-
-
-# Get the module logger
-logger = logging.getLogger(__name__)
 
 
 def check_slurm_configured() -> bool:
@@ -46,7 +46,6 @@ def configure_slurm_environment_variables(env: dict):
     # if the user has an activated virtualenv, remove it from the path
     # otherwise the path to the venv will persist on the allocated node
     # and will affect package resolution
-    # import pdb; pdb.set_trace()
     if "VIRTUAL_ENV" in env:
         env["PATH"] = ":".join([p for p in env["PATH"].split(":") if p != str(Path(env["VIRTUAL_ENV"]) / "bin")])
 
@@ -74,7 +73,7 @@ def configure_slurm_python_command(cmd: list) -> str:
     """
     python_index = query_option_in_cmd(cmd, ["python", "python3"])
     return textwrap.dedent(f"""
-        {" ".join(cmd[python_index:])}
+        {shlex.join(cmd[python_index:])}
     """)
 
 
@@ -381,7 +380,6 @@ def configure_slurm_job(args: argparse.ArgumentParser, benchmark_dict: Dict, pop
     Returns:
         SLURM configuration (dict): SLURM job submission information
     """
-
     logger.info("Configuring benchmark to run as a SLURM job")
 
     num_ipus = int(get_num_ipus(variant_name))

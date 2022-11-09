@@ -6,6 +6,7 @@ import subprocess
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from typing import Dict, Tuple
+import shlex
 
 # Get the module logger
 logger = logging.getLogger(__name__)
@@ -253,7 +254,7 @@ def get_poprun_config(args, cmd) -> Dict:
     parse_range = cmd[poprun_index + 1:python_index]
     known_options, other_options = parser.parse_known_args(parse_range)
     poprun_config = vars(known_options)
-    poprun_config["other_args"] = " ".join(other_options)
+    poprun_config["other_args"] = shlex.join(other_options)
 
     if poprun_config["host"] is not None:
         poprun_config["host"] = poprun_config["host"].split(",")
