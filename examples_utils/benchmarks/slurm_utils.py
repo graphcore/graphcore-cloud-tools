@@ -42,7 +42,7 @@ def check_slurm_configured() -> bool:
     return True
 
 
-def configure_slurm_environment_variables(env: dict):
+def configure_environment_variables(env: dict):
     # if the user has an activated virtualenv, remove it from the path
     # otherwise the path to the venv will persist on the allocated node
     # and will affect package resolution
@@ -52,7 +52,7 @@ def configure_slurm_environment_variables(env: dict):
     return env
 
 
-def configure_slurm_job_working_directory(job_wd: str) -> str:
+def configure_job_working_directory(job_wd: str) -> str:
     """Add instruction to bash job script to cd to the current job working directory
     Args:
         job_wd (str): absolute path to the current benchmark variant working directory
@@ -64,7 +64,7 @@ def configure_slurm_job_working_directory(job_wd: str) -> str:
     """)
 
 
-def configure_slurm_python_command(cmd: list) -> str:
+def configure_python_command(cmd: list) -> str:
     """Add instruction to bash job script to execute the benchmark variant python command
     Args:
         cmd (list): benchmark variant command
@@ -77,8 +77,8 @@ def configure_slurm_python_command(cmd: list) -> str:
     """)
 
 
-def configure_slurm_job_environment(args: argparse.ArgumentParser, variant_dict: Dict, variant_name: str,
-                                    variant_log_dir: str) -> str:
+def configure_job_environment(args: argparse.ArgumentParser, variant_dict: Dict, variant_name: str,
+                              variant_log_dir: str) -> str:
     """Add instruction to bash job script to:
     1. Activate poplar SDK
     2. Create and activate a python venv
@@ -124,26 +124,26 @@ def configure_slurm_job_environment(args: argparse.ArgumentParser, variant_dict:
 
     bash_script = textwrap.dedent(f"""
         ORIG_DIR=$(pwd)
-        # enable SDK (poplar and popart)
+        echo "[INFO] Enabling Poplar SDK at {args.sdk_path}"
         cd {args.sdk_path}
         source enable
-        echo "[INFO] Poplar SDK at {args.sdk_path} enabled"
 
         # create a temporary venv for this variant
+        echo "[INFO] Creating and activating python venv at {venv_path}"
         python3 -m venv {venv_path}
         trap 'echo "[INFO] Removing temporary venv"; rm -rf {venv_path}' EXIT
 
         # activate venv
         source {venv_path}/bin/activate
-        echo "[INFO] Python venv at {venv_path} activated"
         
-        # upgrade pip, setuptools and wheel
+        echo "[INFO] Upgrading pip, setuptools and wheel"
         python3 -m pip install -U pip
         python3 -m pip install -U setuptools wheel
     """)
 
     # determine cpu arch for tf1 & tf2 wheels
     bash_script += textwrap.dedent("""
+        echo "[INFO] determining CPU arch"
         amd_arch=$(cpuinfo | grep -i amd)  
         intel_arch=$(cpuinfo | grep -i intel)
         if ! [[ -z amd_arch ]] 
@@ -157,10 +157,13 @@ def configure_slurm_job_environment(args: argparse.ArgumentParser, variant_dict:
             exit 1
         fi
 
-        echo "[INFO] CPU ARCH is ${CPU_ARCH}"
+        echo "[INFO] CPU arch is ${CPU_ARCH}"
     """)
 
     # Determine framework used and install packages needed
+    bash_script += textwrap.dedent("""
+        echo "[INFO] Installing framework wheel files"
+    """)
     framework = variant_name[0:3]
     if framework == "pyt":
         bash_script += textwrap.dedent("""
@@ -183,7 +186,7 @@ def configure_slurm_job_environment(args: argparse.ArgumentParser, variant_dict:
 
     # application requirements
     bash_script += textwrap.dedent(f"""
-        # Install application requirements
+        echo "[INFO] Installing application requirements"
         cd {application_root}
         python3 -m pip install -r {requirements_path} --no-cache-dir
 
@@ -191,6 +194,9 @@ def configure_slurm_job_environment(args: argparse.ArgumentParser, variant_dict:
     """)
 
     # run build commands
+    bash_script += textwrap.dedent(f"""
+        echo "[INFO] Running pre run commands"
+    """)
     if pre_run_commands:
         for cmd in pre_run_commands:
             bash_script += textwrap.dedent(f"""
@@ -210,7 +216,7 @@ def configure_slurm_job_environment(args: argparse.ArgumentParser, variant_dict:
     return bash_script
 
 
-def configure_slurm_hosts(poprun_config: dict, num_ipus: int) -> Tuple[str, int, int]:
+def configure_hosts(poprun_config: dict, num_ipus: int) -> Tuple[str, int, int]:
     """Configure the number of instances to use on each host, and also 
     the number of hosts
 
@@ -259,6 +265,7 @@ def configure_slurm_hosts(poprun_config: dict, num_ipus: int) -> Tuple[str, int,
     """)
 
     bash_script += textwrap.dedent("""
+        echo "[INFO] Determining restricted host set from $SLURM_JOB_NODELIST"
         BASE=$(echo $SLURM_JOB_NODELIST  | cut -d '-' -f 1,2)
         if [ "${SLURM_JOB_NODELIST/[/}" == "${SLURM_JOB_NODELIST}" ]
         then NODELIST=$SLURM_JOB_NODELIST
@@ -281,7 +288,7 @@ def configure_slurm_hosts(poprun_config: dict, num_ipus: int) -> Tuple[str, int,
             I=$(($I+$SKIP))
         done
         HOSTS=$(sed -e 's/^,//g' -e 's/,$//g' <<<$HOSTS)
-        echo "[INFO] $HOSTS"
+        echo "[INFO] Restricted host set is: $HOSTS"
 
         export SLURM_JOB_NODELIST=$HOSTS
     """)
@@ -302,6 +309,7 @@ def configure_slurm_hosts(poprun_config: dict, num_ipus: int) -> Tuple[str, int,
     if num_hosts > 1:
         # update host public IPs
         bash_script += textwrap.dedent("""
+            echo "[INFO] Adding host public IPs to known hosts"
             OLDIFS=$IFS
             IFS=','
             for host in $SLURM_JOB_NODELIST; do
@@ -310,10 +318,10 @@ def configure_slurm_hosts(poprun_config: dict, num_ipus: int) -> Tuple[str, int,
             done
             IFS=$OLDIFS
         """)
-    return bash_script, num_hosts, num_instances
+    return bash_script
 
 
-def configure_slurm_ipu_partition(poprun_config: dict, num_ipus: int) -> str:
+def configure_ipu_partition(poprun_config: dict, num_ipus: int) -> str:
     """Add instruction to bash job script to create a compatible partition for 
     the benchmark variant. If the benchmark variant is using poprun, poprun will
     be used to create the partition. If it is not using poprun, vipu will be used 
@@ -335,6 +343,8 @@ def configure_slurm_ipu_partition(poprun_config: dict, num_ipus: int) -> str:
     bash_script = textwrap.dedent("""
         export IPUOF_VIPU_API_PARTITION_ID=p${SLURM_JOB_ID}
         export ALLOCATION=c${SLURM_JOB_ID}
+
+        echo "[INFO] Configuring IPU partition and running benchmark"
     """)
 
     if poprun_config == {}:
@@ -342,21 +352,70 @@ def configure_slurm_ipu_partition(poprun_config: dict, num_ipus: int) -> str:
             vipu create partition $IPUOF_VIPU_API_PARTITION_ID --allocation $ALLOCATION --size {num_ipus} --reconfigurable
         """)
     else:
-        host_commands, num_hosts, num_instances = configure_slurm_hosts(poprun_config, num_ipus)
-        bash_script += host_commands
 
         # add poprun options
         # make sure no whitespace is trailing after \\, otherwise multline commands will fail
         bash_script += textwrap.dedent(f"""
-            poprun --host=$SLURM_JOB_NODELIST --num-instances={num_instances} \\
+            poprun --host=$SLURM_JOB_NODELIST --num-instances={int(poprun_config.get("num_instances", 1))} \\
                 --vipu-allocation=$ALLOCATION  --host-subnet={os.environ['SLURM_HOST_SUBNET_MASK']} \\
                 {"" + poprun_config["other_args"]} \\""")
 
     return bash_script
 
 
-def configure_slurm_job(args: argparse.ArgumentParser, benchmark_dict: Dict, poprun_config: Dict, cmd: list,
-                        variant_name: str, variant_log_dir: str, job_wd: str, env: dict):
+def configure_datasets(cmd, poprun_config) -> str:
+    # identify if cmd has any entries relying on $DATASETS_DIR
+    datasets_dir = os.environ.get("DATASETS_DIR")
+    local_datasets_dir = Path("/localdata", "examples-datasets")
+    rsync_dirs = []
+    for i, src in enumerate(cmd):
+        if datasets_dir in src:
+            example_dataset = Path(src).relative_to(datasets_dir)
+            dest = local_datasets_dir / example_dataset
+            cmd[i] = str(dest)
+            # the destination for rsync is the parent dir of dest,
+            # rsync will create the required dir from src
+            rsync_dirs.append((src, Path(dest).parent))
+
+    # add instructions to rsync datasets
+    if len(rsync_dirs) == 0:
+        return "", cmd
+    else:
+
+        bash_script = textwrap.dedent("""
+            echo "[INFO] rsyncing datasets to a local destination"
+        """)
+
+        # not using poprun
+        if poprun_config == {}:
+            rsync_cmds = "\n".join(
+                [f"mkdir -p {dest}; rsync --copy-links -au {src} {dest} " for src, dest in rsync_dirs])
+            bash_script += "\n" + rsync_cmds + "\n"
+        else:
+            rsync_cmds = "\n".join(
+                [f"mkdir -p $host:{dest}; rsync --copy-links -au {src} $host:{dest} &" for src, dest in rsync_dirs])
+            bash_script += textwrap.dedent(f"""
+                OLDIFS=$IFS
+                IFS=','
+                for host in $SLURM_JOB_NODELIST; do
+                    {rsync_cmds}
+                done
+                wait
+                IFS=$OLDIF
+            """)
+
+    return bash_script, cmd
+
+
+def configure_slurm_job(args: argparse.ArgumentParser,
+                        benchmark_dict: Dict,
+                        poprun_config: Dict,
+                        cmd: list,
+                        variant_name: str,
+                        variant_log_dir: str,
+                        job_wd: str,
+                        env: dict,
+                        rsync_datasets: bool = False):
     """Construct a bash script that will be used to submit the given benchmark variant
     in a SLURM queue. The bash script is created in a series of steps:
 
@@ -377,9 +436,14 @@ def configure_slurm_job(args: argparse.ArgumentParser, benchmark_dict: Dict, pop
         variant_name (str): benchmark variant name
         variant_log_dir (str): absolute path to dir used to store execution logs
         job_wd (str): absolute path to the current benchmark variant working directory
+        env (dict): dictionary with environment variables to be used in benchmark subprocess
+        rsync_datasets (bool): rsync datasets from network storage to local storage
     Returns:
         SLURM configuration (dict): SLURM job submission information
     """
+
+    # TODO: expose dataset rsync to users
+
     logger.info("Configuring benchmark to run as a SLURM job")
 
     num_ipus = int(get_num_ipus(variant_name))
@@ -399,10 +463,14 @@ def configure_slurm_job(args: argparse.ArgumentParser, benchmark_dict: Dict, pop
 
     # construct job submission bash script
     bash_script = "#!/bin/bash"
-    bash_script += configure_slurm_job_working_directory(job_wd)
-    bash_script += configure_slurm_job_environment(args, benchmark_dict, variant_name, variant_log_dir)
-    bash_script += configure_slurm_ipu_partition(poprun_config, num_ipus)
-    bash_script += configure_slurm_python_command(cmd)
+    bash_script += configure_job_working_directory(job_wd)
+    bash_script += configure_job_environment(args, benchmark_dict, variant_name, variant_log_dir)
+    bash_script += configure_hosts(poprun_config, num_ipus)
+    if rsync_datasets:
+        rsync_commands, cmd = configure_datasets(cmd, poprun_config)
+        bash_script += rsync_commands
+    bash_script += configure_ipu_partition(poprun_config, num_ipus)
+    bash_script += configure_python_command(cmd)
 
     # output job submission script to variant logging dir
     job_script_path = variant_log_dir / "submit.sh"
@@ -410,7 +478,7 @@ def configure_slurm_job(args: argparse.ArgumentParser, benchmark_dict: Dict, pop
     with open(job_script_path, "w") as script_handle:
         script_handle.write(bash_script)
 
-    logger.info(f"SLURM job submission script created. Please view: {job_script_path}.")
+    logger.info(f"SLURM job submission script created. Please view: {job_script_path}")
 
     # configure stdout and stderr files for the job
     stdout_log_path = str(variant_log_dir / "stdout")
@@ -422,7 +490,7 @@ def configure_slurm_job(args: argparse.ArgumentParser, benchmark_dict: Dict, pop
         job_script_path
     ]
 
-    env = configure_slurm_environment_variables(env)
+    env = configure_environment_variables(env)
 
     return {
         "cmd": slurm_job_command,
