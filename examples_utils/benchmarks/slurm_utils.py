@@ -353,10 +353,23 @@ def configure_ipu_partition(poprun_config: dict, num_ipus: int) -> str:
         """)
     else:
 
+        num_ilds = poprun_config["num_ilds"]
+        if num_ilds is None:
+            num_ilds = 1
+        else:
+            try:
+                num_ilds = int(num_ilds)
+            except ValueError:
+                raise ValueError("Poprun --num-ilds option must be of integral type")
+            if num_ilds > 1:
+                logger.warning(
+                    "The Slurm queue does not support augmenting the cluster specification. Forcing --num-ilds to 1.")
+                num_ilds = 1
+
         # add poprun options
         # make sure no whitespace is trailing after \\, otherwise multline commands will fail
         bash_script += textwrap.dedent(f"""
-            poprun --host=$SLURM_JOB_NODELIST --num-instances={int(poprun_config.get("num_instances", 1))} \\
+            poprun --host=$SLURM_JOB_NODELIST --num-ilds {num_ilds} --num-instances={int(poprun_config.get("num_instances", 1))} \\
                 --vipu-allocation=$ALLOCATION  --host-subnet={os.environ['SLURM_HOST_SUBNET_MASK']} \\
                 {"" + poprun_config["other_args"]} \\""")
 
