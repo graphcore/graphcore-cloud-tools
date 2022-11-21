@@ -226,23 +226,26 @@ def configure_hosts(poprun_config: dict, num_ipus: int) -> Tuple[str, int, int]:
     Returns 
         bash command, number of hosts, number of instances as a tuple
     """
-    num_instances = 1
-    if poprun_config["num_instances"] is not None:
-        num_instances = int(poprun_config["num_instances"])
 
+    num_instances = 1
     num_hosts = 1
-    if poprun_config["host"] is not None:
-        # users want to use a specific number of hosts
-        # set this depending on the default number of hosts
-        # available on each POD size
-        if num_ipus <= 16:
-            num_hosts = 1
-        elif num_ipus <= 64:
-            num_hosts = 4
-        elif num_ipus <= 128:
-            num_hosts = 8
-        elif num_ipus <= 256:
-            num_hosts = 16
+
+    if poprun_config != {}:
+        if poprun_config["num_instances"] is not None:
+            num_instances = int(poprun_config["num_instances"])
+
+        if poprun_config["host"] is not None:
+            # users want to use a specific number of hosts
+            # set this depending on the default number of hosts
+            # available on each POD size
+            if num_ipus <= 16:
+                num_hosts = 1
+            elif num_ipus <= 64:
+                num_hosts = 4
+            elif num_ipus <= 128:
+                num_hosts = 8
+            elif num_ipus <= 256:
+                num_hosts = 16
 
     # reconfigure number of instances per host before moving to the next host
     if num_instances < num_hosts:
