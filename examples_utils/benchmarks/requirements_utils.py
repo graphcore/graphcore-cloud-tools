@@ -38,16 +38,26 @@ class Repository(NamedTuple):
             logger.info(f"Cloning repository {self.origin} to {repo_folder}")
             repo = git.Repo.clone_from(self.origin, to_path=repo_folder)
         else:
-            logger.info(f"Working in repository: {repo_folder}")
-            repo = git.Repo(repo_folder)
-            # TODO: Check that the remotes of that repository match the origin of the object
+            try:
+                repo = git.Repo(repo_folder)
+            except git.InvalidGitRepositoryError as error:
+                raise git.InvalidGitRepositoryError(
+                    f"{repo_folder} is not a git repository. If this folder"
+                    "was cloned make sure the clone was successful, or if it is meant to be"
+                    "a local repository make sure to run `git init` in the folder before "
+                    "calling `prepare` on that path.") from error
+        # if a ref is specified, try to fetch it then try to check it out
+        if repo.remotes and self.ref:
+            try:
+                repo.git.fetch()
+            except git.GitCommandError as error:
+                logger.warn(f"Failed to fetch the repository {self.origin} in folder"
+                            f" {repo_folder}. Trying to fetch raised: {error}")
+        if self.ref:
+            repo.git.checkout(self.ref)
+            if not repo.head.is_detached:
+                repo.git.pull()
 
-        if self.ref:
-            repo.git.checkout(self.ref)
-        if not repo.head.is_detached and repo.remotes:
-            repo.git.pull()
-        if self.ref:
-            repo.git.checkout(self.ref)
         return repo_folder
 
     def _sanitised_url(self) -> str:
