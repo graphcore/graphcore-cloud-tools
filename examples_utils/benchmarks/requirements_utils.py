@@ -26,8 +26,12 @@ class Repository(NamedTuple):
     origin: str
     ref: Optional[str] = None
 
-    def prepare(self, cloning_directory: Path = Path(".").resolve() / "clones") -> Path:
+    def prepare(self, cloning_directory: Optional[Path] = None) -> Path:
         """Clones and checkouts the correct ref of the origin"""
+        if cloning_directory is None:
+            cloning_directory = Path(".").resolve() / "clones"
+        else:
+            cloning_directory = Path(cloning_directory).resolve()
         # Treat the origin as a folder, if it doesn't exist it's a URL to clone
         repo_folder = Path(self.origin)
         if not repo_folder.exists():
@@ -79,7 +83,7 @@ def install_patched_requirements(requirements_file: Union[str, Path], listener: 
     original_requirements = requirements_file.read_text()
     requirements_file.write_text("\n".join(l for l in original_requirements.splitlines() if "examples-utils" not in l))
     cmd = [sys.executable, "-m", "pip", "install", "-r", str(requirements_file)]
-    out, err, exit_code = run_and_monitor_progress(cmd, listener)
+    out, err, exit_code, _ = run_and_monitor_progress(cmd, listener, monitor_ipus=False)
     if exit_code:
         err = (f"Installation of pip packages in file {requirements_file} failed with stderr: {err}.")
         logger.error(err)
@@ -104,7 +108,7 @@ def install_apt_packages(requirements_file_or_list: Union[str, Path, List[str]],
         ["apt", "update", "-y"],
         ["apt", "install", "-y", *requirements_list],
     ]:
-        out, err, exit_code = run_and_monitor_progress(cmd, listener)
+        out, err, exit_code, _ = run_and_monitor_progress(cmd, listener, monitor_ipus=False)
         if exit_code:
             err = (f"System packages installation failed with stderr: {err}.")
             logger.error(err)
@@ -123,12 +127,12 @@ def in_benchmark_dir(benchmark_dict):
         os.chdir(previous_work_dir)
 
 
-def prepare_benchmark_environment(benchmark_dict: BenchmarkDict, listener: TextIOWrapper):
+def prepare_benchmark_environment(benchmark_dict: BenchmarkDict, listener: TextIOWrapper, cloning_directory=None):
     changes_to_revert = {}
     if benchmark_dict.get("repository"):
         repo_in = benchmark_dict.get("repository", {})
         repo = Repository(**repo_in)
-        benchmark_dict["reference_directory"] = repo.prepare()
+        benchmark_dict["reference_directory"] = repo.prepare(cloning_directory)
 
     with in_benchmark_dir(benchmark_dict):
         required_apt_packages: Optional[str] = benchmark_dict.get("required_apt_packages")
@@ -166,7 +170,11 @@ def assess_platform(args: argparse.Namespace):
             logger.info("-" * 40)
             for name, benchmark in benchmarks.items():
                 logger.info(f"Preparing environment for '{name}'")
-                revertible_changes[name] = prepare_benchmark_environment(benchmark, log_file)
+                revertible_changes[name] = prepare_benchmark_environment(
+                    benchmark,
+                    log_file,
+                    cloning_directory=args.cloning_directory,
+                )
 
             _ = run_benchmarks_from_spec(benchmarks, args)
         finally:
@@ -176,5 +184,9 @@ def assess_platform(args: argparse.Namespace):
                 cleanup_benchmark_environments(benchmark, revertible_changes.get(name))
 
 
-def platform_parser(parser):
-    return benchmarks_parser(parser)
+def platform_parser(parser: argparse.ArgumentParser):
+    benchmarks_parser(parser)
+    parser.add_argument("--cloning-directory",
+                        type=str,
+                        default=None,
+                        help="Directory in which repositories get cloned")

@@ -65,7 +65,7 @@ script_benchmark:
     """)
     print(test_commands.run_command_fail_explicitly([virtual_env, "-m", "pip", "list"]))
     out = test_commands.run_command_fail_explicitly(
-        [virtual_env, "-m", "examples_utils", "benchmark", "--spec",
+        [virtual_env, "-m", "examples_utils", "benchmark", "--gc-monitor", "--spec",
          str(yaml_file)],
         ".",
     )

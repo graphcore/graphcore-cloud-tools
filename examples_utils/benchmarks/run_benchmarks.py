@@ -13,7 +13,8 @@ from io import TextIOWrapper
 from pathlib import Path
 from typing import Tuple, Union, Dict, List
 import yaml
-
+import json
+import time
 from examples_utils.benchmarks.command_utils import (formulate_benchmark_command, get_benchmark_variants,
                                                      get_local_poprun_hosts, get_poprun_config)
 from examples_utils.benchmarks.distributed_utils import (remove_distributed_filesystems, setup_distributed_filesystems)
@@ -36,6 +37,19 @@ from examples_utils.benchmarks.profiling_utils import add_profiling_vars
 from examples_utils.benchmarks.slurm_utils import (check_slurm_configured, configure_slurm_job,
                                                    run_and_monitor_progress_on_slurm)
 
+try:
+    # Plotting of IPU usage is only supported with [jupyter] requirements
+    # but the function will be called whenever `--gc-monitor` argument is set
+    # so we define a dummy function when the dependencies are not available.
+    from .monitoring_utils import plot_ipu_usage
+except (ImportError, ModuleNotFoundError) as error:
+
+    def plot_ipu_usage(*args, **kwargs):
+        """Does nothing install the package with examples-utils[jupyter] to
+        plot IPU usage during benchmarks"""
+        return None
+
+
 # Get the module logger
 logger = logging.getLogger()
 
@@ -54,7 +68,11 @@ def should_reattempt_benchmark(variant, output, err, exitcode) -> Union[bool, st
     return False
 
 
-def run_and_monitor_progress(cmd: list, listener: TextIOWrapper, timeout: int = None, **kwargs) -> Tuple[str, str, int]:
+def run_and_monitor_progress(cmd: list,
+                             listener: TextIOWrapper,
+                             timeout: int = None,
+                             monitor_ipus: bool = True,
+                             **kwargs) -> Tuple[str, str, int, List[str]]:
     """Run the benchmark monitor progress.
 
     Args:
@@ -75,6 +93,7 @@ def run_and_monitor_progress(cmd: list, listener: TextIOWrapper, timeout: int = 
 
     # All this appears to be for reading process output ------------------------
     outs = [[], []]
+    ipu_monitoring: List[str] = []
 
     def proc_thread():
         sel = selectors.DefaultSelector()
@@ -109,12 +128,31 @@ def run_and_monitor_progress(cmd: list, listener: TextIOWrapper, timeout: int = 
     t = threading.Thread(target=proc_thread, name="proc_thread")
     t.start()
 
+    def monitor_thread():
+        while t.is_alive():
+            try:
+                timestamp = datetime.now().strftime("%Y-%m-%d-%H.%M.%S.%f")
+                ipu_log_line = json.dumps({
+                    "timestamp": timestamp,
+                    **json.loads(subprocess.check_output(["gc-monitor", "--json"]))
+                })
+                ipu_monitoring.append(f"{ipu_log_line}\n")
+                time.sleep(5)
+            except:
+                pass
+
+    if monitor_ipus:
+        t_monitor = threading.Thread(target=monitor_thread, name="monitor_thread")
+        t_monitor.start()
+
     total_time = 0
     timeout_error = False
     while True:
         # Check if benchmarking process thread has terminated every second
         t.join(1)
         if not t.is_alive():
+            if monitor_ipus:
+                t_monitor.join()
             break
         total_time += 1
 
@@ -138,7 +176,7 @@ def run_and_monitor_progress(cmd: list, listener: TextIOWrapper, timeout: int = 
     if timeout_error:
         err += f"\nTimeout ({timeout})\n"
 
-    return (output, err, exitcode)
+    return (output, err, exitcode, ipu_monitoring)
 
 
 def run_benchmark_variant(
@@ -147,7 +185,7 @@ def run_benchmark_variant(
         variant_dict: dict,
         benchmark_dict: dict,
         listener: TextIOWrapper,
-        args: argparse.ArgumentParser,
+        args: argparse.Namespace,
 ) -> dict:
     """Run a variant and collect results.
 
@@ -159,7 +197,7 @@ def run_benchmark_variant(
         benchmark_dict (dict): The benchmark definition from the yaml file
         listener (TextIOWrapper): Open file to collect stdout/stderr from the
             process running the variant
-        args (argparse.ArgumentParser): Arguments passed to this script
+        args (argparse.Namespace): Arguments passed to this script
 
     Returns:
         variant_result (dict): The results from this variants run
@@ -246,14 +284,18 @@ def run_benchmark_variant(
     start_time = datetime.now()
     logger.info(f"Start test: {start_time}")
     need_to_run = True
+    monitor_log = []
+    exitcode = 0
+    stdout = stderr = ""
     while need_to_run:
         if args.submit_on_slurm:
             stdout, stderr, exitcode = run_and_monitor_progress_on_slurm(listener=listener, **slurm_config)
         else:
-            stdout, stderr, exitcode = run_and_monitor_progress(
+            stdout, stderr, exitcode, monitor_log = run_and_monitor_progress(
                 cmd,
                 listener,
                 args.timeout,
+                monitor_ipus=args.gc_monitor,
                 cwd=cwd,
                 env=env,
             )
@@ -351,6 +393,10 @@ def run_benchmark_variant(
     if not args.submit_on_slurm:
         with open(outlog_path, "w") as f:
             f.write(stdout)
+        if monitor_log:
+            with open(variant_log_dir / "ipu-monitor.jsonl", "w") as f:
+                f.writelines(monitor_log)
+            plot_ipu_usage(outlog_path.parent)
         with open(errlog_path, "w") as f:
             f.write(stderr)
 
@@ -367,6 +413,10 @@ def run_benchmark_variant(
         "compilation_end_time": str(results["total_compiling_time"]["mean"]),
         "test_duration": str(total_runtime),
         "exitcode": exitcode,
+        "log_paths": {
+            "out": str(outlog_path),
+            "err": str(errlog_path)
+        },
     }
 
     # These failure points are not caught normally, check here
@@ -376,6 +426,10 @@ def run_benchmark_variant(
     ]
     if any(possible_failure_points) and exitcode == 0:
         variant_result["exitcode"] = 1
+
+    if not args.submit_on_slurm:
+        with open(variant_log_dir / "variant_result.json", "w") as f:
+            json.dump(variant_result, f)
 
     return variant_result
 
@@ -540,6 +594,8 @@ def run_benchmarks_from_spec(spec: Dict[str, BenchmarkDict], args: argparse.Name
     print_benchmark_summary(results)
 
     save_results(args.log_dir, args.additional_metrics, results)
+    if args.gc_monitor:
+        plot_ipu_usage(args.log_dir)
     return results
 
 
@@ -609,6 +665,12 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
         action="store_true",
         help=("Enable profiling for the benchmarks, setting the appropriate "
               "environment variables and storing profiling reports in the cwd"),
+    )
+    parser.add_argument(
+        "--gc-monitor",
+        action="store_true",
+        help=("Enable usage monitoring during benchmarks. when set, runs gc-monitor "
+              "every 5 seconds"),
     )
     parser.add_argument(
         "--remove-dirs-after",

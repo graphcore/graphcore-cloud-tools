@@ -97,7 +97,9 @@ notebook_benchmark:
     notebook:
         file: {SAMPLE_NOTEBOOK}
     """)
-    out = subprocess.check_output(["python3", "-m", "examples_utils", "benchmark", "--spec", str(yaml_file)])
+    out = subprocess.check_output(
+        ["python3", "-m", "examples_utils", "benchmark", "--gc-monitor", "--spec",
+         str(yaml_file)])
     assert "PASSED notebook_benchmark::notebook_benchmark" in out.decode()
 
 
