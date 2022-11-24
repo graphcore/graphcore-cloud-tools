@@ -5,6 +5,7 @@ import re
 import statistics
 from datetime import datetime
 from typing import Tuple
+from examples_utils.benchmarks.custom_metrics import register_custom_metric
 
 # Get the module logger
 logger = logging.getLogger(__name__)
@@ -63,13 +64,13 @@ def get_instance_compile_times(compile_log: str) -> list:
     """Get compile times for each instance from the logs.
 
     Parameters
-        compile_log (str): The log containing compile time outputs from 
+        compile_log (str): The log containing compile time outputs from
             poplar/popart, as a string
 
     Returns:
         results_per_inst (list): Compile time results per instance for all
             instances found
-    
+
     """
 
     results_per_inst = {comp_time["ref"]: {} for comp_time in compile_time_lookup}
@@ -101,7 +102,7 @@ def get_instance_compile_times(compile_log: str) -> list:
     return results_per_inst
 
 
-def get_overall_compile_times(results: dict, results_per_inst: dict, exitcode: int) -> dict:
+def get_overall_compile_times(results_per_inst: dict, exitcode: int) -> dict:
     """Get the overall compile time from all instances, allreduced.
 
     Args:
@@ -112,8 +113,7 @@ def get_overall_compile_times(results: dict, results_per_inst: dict, exitcode: i
             benchmark/variant
 
     Returns:
-        results (dict): The benchmarks/variants results, but now with compile
-            times
+        total_compiling_time (dict): The compile time as a dictionary
 
     """
 
@@ -148,21 +148,22 @@ def get_overall_compile_times(results: dict, results_per_inst: dict, exitcode: i
     if overall_end_time and overall_start_time:
         if not exitcode:
             total_compiling_time = (overall_end_time - overall_start_time).total_seconds()
-    results["total_compiling_time"] = {"mean": total_compiling_time}
 
-    return results
+    return {"mean": total_compiling_time}
 
 
-def get_results_for_compile_time(results: dict, stderr: str, exitcode: int) -> dict:
+def get_results_for_compile_time(_: str, stderr: str, exitcode: int) -> dict:
     """Function to gather compile time results from stderr.
 
+    This function conforms to the ``MetricFunction`` interface.
+
     Args:
-        results (dict): The results from the benchmark
+        _ (str): The stdout output from the benchmark process
         stderr (str): stderr output from the benchmark process
         exitcode (int): The exitcode form the process that ran the benchmark command
 
     Results:
-        results (dict): The results from the benchmark, now including compile time
+        total_compiling_time (dict): The compile as a dictionary
 
     """
 
@@ -170,19 +171,19 @@ def get_results_for_compile_time(results: dict, stderr: str, exitcode: int) -> d
     results_per_inst = get_instance_compile_times(stderr)
 
     # Calculate overall start/end times from all instances
-    results = get_overall_compile_times(results, results_per_inst, exitcode)
+    total_compiling_time = get_overall_compile_times(results_per_inst, exitcode)
 
     # Log compile time and add to stderr
-    is_recording_legit = isinstance(results["total_compiling_time"]["mean"], float)
+    is_recording_legit = isinstance(total_compiling_time["mean"], float)
     if is_recording_legit:
-        printable_time = round(results["total_compiling_time"]["mean"], 2)
+        printable_time = round(total_compiling_time["mean"], 2)
         compile_time_output = f"   Total compile time: {printable_time} seconds"
     else:
         compile_time_output = f"   Total compile time: ERROR"
 
     logger.info(compile_time_output)
 
-    return results
+    return total_compiling_time
 
 
 def set_config_defaults(data_extraction_dict: dict) -> dict:
@@ -214,7 +215,7 @@ def extract_metrics(extraction_config: dict, log: str, exitcode: int, num_replic
     Args:
         extraction_config (dict): Configuration describing how to extract
             metrics from the log
-        log (str): The output log from the benchmark containing metrics
+        log (str): The stdout and stderr from the benchmark containing metrics
         exitcode (int): The benchmark process exitcode
         num_replicas (int): The number of replicas used in this benchmark
 
@@ -375,7 +376,7 @@ def get_match_of_list(regex_list: list, line: str) -> str:
     return match
 
 
-def additional_metrics(results: dict, test_duration: float, cmd: str, exitcode: int, env: list,
+def additional_metrics(results: dict, test_duration: float, cmd: str, exitcode: int, env: dict,
                        git_commit_hash: str) -> dict:
     results["test_duration"] = {"test_duration": test_duration}
     results["cmd"] = {"cmd": cmd}
@@ -388,3 +389,6 @@ def additional_metrics(results: dict, test_duration: float, cmd: str, exitcode: 
     results["env"] = {"env": env_string}
 
     return results
+
+
+register_custom_metric("total_compiling_time", get_results_for_compile_time)

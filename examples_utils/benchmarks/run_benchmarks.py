@@ -31,8 +31,8 @@ from examples_utils.benchmarks.environment_utils import (
 from examples_utils.benchmarks.logging_utils import (WANDB_AVAILABLE, get_latest_checkpoint_path, get_wandb_link,
                                                      print_benchmark_summary, save_results, upload_checkpoints,
                                                      upload_compile_time)
-from examples_utils.benchmarks.metrics_utils import (additional_metrics, derive_metrics, extract_metrics,
-                                                     get_results_for_compile_time)
+from examples_utils.benchmarks.metrics_utils import additional_metrics, derive_metrics, extract_metrics
+from examples_utils.benchmarks.custom_metrics import process_registered_metrics, import_metrics_hooks_files
 from examples_utils.benchmarks.profiling_utils import add_profiling_vars
 from examples_utils.benchmarks.slurm_utils import (check_slurm_configured, configure_slurm_job,
                                                    run_and_monitor_progress_on_slurm)
@@ -363,8 +363,9 @@ def run_benchmark_variant(
     )
 
     # Get compile_time metrics (scraped from the log)
-    results = get_results_for_compile_time(
+    results = process_registered_metrics(
         results,
+        stdout,
         stderr,
         exitcode,
     )
@@ -501,6 +502,7 @@ def parse_benchmark_specs(spec_files: List[str]):
 def run_benchmarks_from_spec(spec: Dict[str, BenchmarkDict], args: argparse.Namespace):
     results = {}
     output_log_path = Path(args.log_dir, "output.log")
+    import_metrics_hooks_files(args.custom_metrics_files)
     with open(output_log_path, "w", buffering=1) as listener:
         print("\n" + "#" * 80)
         logger.info(f"Logs at: {output_log_path}")
@@ -593,7 +595,7 @@ def run_benchmarks_from_spec(spec: Dict[str, BenchmarkDict], args: argparse.Name
     # Print PASSED/FAILED summary
     print_benchmark_summary(results)
 
-    save_results(args.log_dir, args.additional_metrics, results)
+    save_results(args.log_dir, args.additional_metrics, results, args.csv_metrics)
     if args.gc_monitor:
         plot_ipu_usage(args.log_dir)
     return results
@@ -632,6 +634,19 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
         "--compile-only",
         action="store_true",
         help="Enable compile only options in compatible models",
+    )
+    parser.add_argument(
+        "--csv-metrics",
+        type=str,
+        nargs="+",
+        default=tuple(),
+        help="List of extra metrics to capture in the CSV output.",
+    )
+    parser.add_argument(
+        "--custom-metrics-files",
+        type=str,
+        nargs="+",
+        help="List of python files containing extra metrics functions.",
     )
     parser.add_argument(
         "--include-convergence",
