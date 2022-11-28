@@ -97,7 +97,7 @@ def configure_job_environment(args: argparse.ArgumentParser, variant_dict: Dict,
     """
 
     # get application root path
-    variant_log_dir_parts = variant_log_dir.parts
+    variant_log_dir_parts = Path(variant_dict["benchmark_path"]).parts
     examples_internal_index = variant_log_dir_parts.index("examples-internal")
     application_root = Path(*variant_log_dir_parts[0:examples_internal_index + 4])
 

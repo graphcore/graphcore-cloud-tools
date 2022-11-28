@@ -502,7 +502,8 @@ def parse_benchmark_specs(spec_files: List[str]):
 def run_benchmarks_from_spec(spec: Dict[str, BenchmarkDict], args: argparse.Namespace):
     results = {}
     output_log_path = Path(args.log_dir, "output.log")
-    import_metrics_hooks_files(args.custom_metrics_files)
+    if args.custom_metrics_files is not None:
+        import_metrics_hooks_files(args.custom_metrics_files)
     with open(output_log_path, "w", buffering=1) as listener:
         print("\n" + "#" * 80)
         logger.info(f"Logs at: {output_log_path}")
