@@ -279,7 +279,7 @@ def expand_environment_variables(cmd: str, new_env: dict) -> str:
     """
 
     # temporarily set os.environ to new env vars
-    orig_env = os.environ.copy()
+    orig_env = copy.deepcopy(os.environ)
     os.environ = new_env
 
     # expand vars against the new environment variables and revert os.environ
