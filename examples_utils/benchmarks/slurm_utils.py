@@ -188,7 +188,7 @@ def configure_job_environment(args: argparse.ArgumentParser, variant_dict: Dict,
     bash_script += textwrap.dedent(f"""
         echo "[INFO] Installing application requirements"
         cd {application_root}
-        python3 -m pip install -r {requirements_path} --no-cache-dir
+        python3 -m pip install -r {requirements_path} --no-cache-dir --force-reinstall
 
         echo "[INFO] Installed application requirements"
     """)
@@ -465,14 +465,15 @@ def configure_slurm_job(args: argparse.ArgumentParser,
     num_ipus = int(get_num_ipus(variant_name))
 
     # SLURM helper scripts to submit jobs depending on the number of IPUs
+    machine_type = {"any": "", "mk2": "c", "mk2w": "w"}[args.slurm_machine_type]
     if num_ipus <= 16:
-        submission_script = "runonpod16.sh"
+        submission_script = f"runonpod16{machine_type}.sh"
     elif num_ipus <= 64:
-        submission_script = "runonpod64.sh"
+        submission_script = f"runonpod64{machine_type}.sh"
     elif num_ipus <= 128:
-        submission_script = "runonpod128.sh"
+        submission_script = f"runonpod128{machine_type}.sh"
     elif num_ipus <= 256:
-        submission_script = "runonpod256.sh"
+        submission_script = f"runonpod256{machine_type}.sh"
     else:
         err_msg = "Benchmark cannot utilise more than 256 IPUs."
         raise ValueError(err_msg)

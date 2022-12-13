@@ -476,7 +476,7 @@ def run_benchmarks(args: argparse.Namespace):
         logger.info("Benchmarks to be submitted via SLURM")
 
     spec = parse_benchmark_specs(args.spec)
-    run_benchmarks_from_spec(spec, args)
+    return run_benchmarks_from_spec(spec, args)
 
 
 def parse_benchmark_specs(spec_files: List[str]):
@@ -718,3 +718,4 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
         help="List of locations to upload model checkpoints to",
     )
     parser.add_argument("--submit-on-slurm", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--slurm-machine-type", choices=["any", "mk2", "mk2w"], default="any", help=argparse.SUPPRESS)
