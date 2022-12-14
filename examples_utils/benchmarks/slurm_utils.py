@@ -121,6 +121,7 @@ def configure_job_environment(args: argparse.ArgumentParser, variant_dict: Dict,
         shutil.rmtree(venv_path)
 
     pre_run_commands = variant_dict.get("pre_run_commands", None)
+    pip_install_str = "python3 -m pip install --no-cache-dir"
 
     bash_script = textwrap.dedent(f"""
         ORIG_DIR=$(pwd)
@@ -137,8 +138,7 @@ def configure_job_environment(args: argparse.ArgumentParser, variant_dict: Dict,
         source {venv_path}/bin/activate
         
         echo "[INFO] Upgrading pip, setuptools and wheel"
-        python3 -m pip install -U pip
-        python3 -m pip install -U setuptools wheel
+        {pip_install_str} --upgrade setuptools wheel pip 
     """)
 
     # determine cpu arch for tf1 & tf2 wheels
@@ -164,32 +164,27 @@ def configure_job_environment(args: argparse.ArgumentParser, variant_dict: Dict,
     bash_script += textwrap.dedent("""
         echo "[INFO] Installing framework wheel files"
     """)
+
     framework = variant_name[0:3]
     if framework == "pyt":
-        bash_script += textwrap.dedent("""
-            python3 -m pip install poptorch*.whl
-        """)
+        packages = "poptorch*.whl"
     elif framework == "tf1":
-        bash_script += textwrap.dedent("""
-            python3 -m pip install tensorflow-1*${CPU_ARCH}*.whl
-            python3 -m pip install ipu_tensorflow_addons-1*.whl
-        """)
+        packages = "tensorflow-1*${CPU_ARCH}*.whl ipu_tensorflow_addons-1*.whl"
     elif framework == "tf2":
-        bash_script += textwrap.dedent("""
-            python3 -m pip install tensorflow-2*${CPU_ARCH}*.whl
-            python3 -m pip install ipu_tensorflow_addons-2*.whl
-            python3 -m pip install keras-2*.whl
-        """)
+        packages = "tensorflow-2*${CPU_ARCH}*.whl ipu_tensorflow_addons-2*.whl keras-2*.whl"
     else:
         err_msg = "Benchmark name should begin with pytorch, popart, tf1 or tf2."
         raise ValueError(err_msg)
+
+    bash_script += textwrap.dedent(f"""
+        {pip_install_str} {packages}
+    """)
 
     # application requirements
     bash_script += textwrap.dedent(f"""
         echo "[INFO] Installing application requirements"
         cd {application_root}
-        python3 -m pip install -r {requirements_path} --no-cache-dir --force-reinstall
-
+        {pip_install_str} -r {requirements_path}
         echo "[INFO] Installed application requirements"
     """)
 
@@ -197,6 +192,7 @@ def configure_job_environment(args: argparse.ArgumentParser, variant_dict: Dict,
     bash_script += textwrap.dedent(f"""
         echo "[INFO] Running pre run commands"
     """)
+
     if pre_run_commands:
         for cmd in pre_run_commands:
             bash_script += textwrap.dedent(f"""
