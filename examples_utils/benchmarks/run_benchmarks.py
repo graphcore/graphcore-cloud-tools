@@ -269,8 +269,14 @@ def run_benchmark_variant(
         is_distributed = len(poprun_hostnames) > 1 and not args.compile_only
 
         if is_distributed:
-            # Setup temporary filesystems on all hosts and modify cmd to use this
-            setup_distributed_filesystems(args, poprun_hostnames)
+            if args.no_code_sync:
+                logger.info("Filesystem (venv/code) syncing has been disabled "
+                            "with the '--no-code-sync' arg. Skipping copying "
+                            f"the files at {args.venv_path} and "
+                            f"{args.examples_path} automatically to all hosts.")
+            else:
+                # Setup temporary filesystems on all hosts and modify cmd to use this
+                setup_distributed_filesystems(args, poprun_hostnames)
 
         if reqs:
             logger.info(f"Install python requirements")
@@ -313,16 +319,22 @@ def run_benchmark_variant(
     #     output += analyse_profile(variant_name, cwd)
 
     # Teardown temporary filesystem on all hosts
-    if not args.submit_on_slurm:
-        if args.remove_dirs_after:
-            if is_distributed:
-                remove_distributed_filesystems(args, poprun_hostnames)
-            else:
-                logger.info("'--remove-dirs-after has been set but this benchmark has "
-                            "not been specified to use multiple hosts, and so there "
-                            "are no remote temporary filesystems to delete. Local "
-                            "filesystems on this host will not automatically be "
-                            "deleted.")
+    if args.no_code_sync:
+        logger.info("Filesystem (venv/code) syncing has been disabled "
+                    "with the '--no-code-sync' arg. Skipping removing "
+                    f"the files at {args.venv_path} and "
+                    f"{args.examples_path} automatically on all hosts.")
+        args.remove_dirs_after = False
+
+    if not args.submit_on_slurm and args.remove_dirs_after:
+        if is_distributed:
+            remove_distributed_filesystems(args, poprun_hostnames)
+        else:
+            logger.info("'--remove-dirs-after' has been set but this "
+                        "benchmark has not been specified to use multiple "
+                        "hosts, and so there are no remote temporary "
+                        "filesystems to delete. Local filesystems on this "
+                        "host will not automatically be deleted.")
 
     # If process didnt end as expected
     if exitcode:
@@ -675,6 +687,12 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
         choices=["DEBUG", "INFO", "ERROR", "CRITICAL", "WARNING"],
         default="INFO",
         help="Specify the logging level",
+    )
+    parser.add_argument(
+        "--no-code-sync",
+        action="store_true",
+        help=("Disable automatic syncing of venv/code files across all hosts "
+              "in multi-host benchmarks."),
     )
     parser.add_argument(
         "--profile",
