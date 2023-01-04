@@ -341,13 +341,13 @@ def run_benchmark_variant(
         err = (f"Benchmark ERROR, exited with code: ({str(exitcode)}). Please check logs for more information.")
         logger.error(err)
 
-        if not args.ignore_errors:
+        if args.stop_on_error:
             error_tail = "\n\t" + "\n\t".join(stderr.splitlines()[-10:]) + "\n"
             logger.error(f"Last 10 lines of stderr from {variant_name}:{error_tail}")
             sys.excepthook = lambda exctype, exc, traceback: print("{}: {}".format(exctype.__name__, exc))
             raise RuntimeError(err)
         else:
-            logger.info("Continuing to next benchmark as `--ignore-error` was passed")
+            logger.info("Continuing to next benchmark as `--stop-on-error` was not passed")
 
     # Get 'data' metrics, these are metrics scraped from the log
     results, extraction_failure = extract_metrics(
@@ -672,9 +672,10 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
               "'--benchmarks'."),
     )
     parser.add_argument(
-        "--ignore-errors",
+        "--stop-on-error",
         action="store_true",
-        help="Do not stop on an error",
+        help=("Stop on the first error and terminate all runs, instead of "
+              "proceeding to the next benchmark"),
     )
     parser.add_argument(
         "--log-dir",

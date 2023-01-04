@@ -120,6 +120,36 @@ def get_benchmark_variants(benchmark_name: str, benchmark_dict: dict) -> list:
     return variants
 
 
+def remove_wandb_args(cmd: str) -> str:
+    """Remove all wandb args and their values from command strings.
+    """
+
+    new_arg_list = []
+    arg_list = shlex.split(cmd)
+    # Avoid out of bounds access attempt
+    arg_list.append("")
+
+    skip = False
+    arg_pattern = re.compile("^[-]+")
+    for i in range(len(arg_list) - 1):
+        if arg_pattern.match(arg_list[i]) and "wandb" in arg_list[i]:
+            # Also remove the values given to wandb args using a skip bool for
+            # next iteration
+            if not arg_pattern.match(arg_list[i + 1]):
+                skip = True
+            continue
+
+        if skip:
+            skip = False
+            continue
+
+        new_arg_list.append(arg_list[i])
+
+    new_cmd = shlex.join(new_arg_list)
+
+    return new_cmd
+
+
 def formulate_benchmark_command(
         benchmark_dict: dict,
         variant_dict: dict,
@@ -166,7 +196,8 @@ def formulate_benchmark_command(
                     "argument provided to the benchmark. The default value of "
                     "'--allow-wandb' (False) is overriding, purging '--wandb' "
                     "and all args containing 'wandb' from command.")
-        cmd = " ".join([x for x in cmd.split(" ") if "--wandb" not in x])
+
+        cmd = remove_wandb_args(cmd)
 
     if args.compile_only:
         logger.info("'--compile-only' was passed here. Appending '--compile-only' to the benchmark command.")
@@ -177,7 +208,7 @@ def formulate_benchmark_command(
             logger.info("--compile-only was passed, and wandb is not used for "
                         "compile only runs, purging '--wandb' and all args "
                         "containing 'wandb' in their names from command.")
-            cmd = " ".join([x for x in cmd.split(" ") if "--wandb" not in x])
+            cmd = remove_wandb_args(cmd)
 
         # Remove vipu settings that prevent from running in compile-only mode
         cmd = re.sub(r"--vipu-partition.*?=.*?\S*", "", cmd)
