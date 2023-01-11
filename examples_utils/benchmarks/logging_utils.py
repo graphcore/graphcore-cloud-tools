@@ -45,9 +45,12 @@ def configure_logger(args: argparse.Namespace):
     # Setup logger
     logger = logging.getLogger()
     formatter = logging.Formatter("[%(levelname)s] %(asctime)s: %(message)s", "%Y-%m-%d %H:%M:%S")
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    stream_handler = logging.StreamHandler(sys.stderr)
+    stream_handler.setFormatter(formatter)
+    file_handler = logging.FileHandler(args.log_dir / "console.log")
+    file_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+    logger.addHandler(file_handler)
     logger.setLevel(args.logging)
 
     logger.info(f"Logging directory: '{args.log_dir}'")
