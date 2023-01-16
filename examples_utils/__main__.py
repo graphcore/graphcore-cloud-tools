@@ -17,14 +17,14 @@ except ModuleNotFoundError as error:
 
 def main(raw_args):
     parser = argparse.ArgumentParser()
+
     subparsers = parser.add_subparsers(dest='subparser')
 
     load_lib_build_subparser = subparsers.add_parser(
         'load_lib_build', description='Use load_lib to build all eligible files in specified directory.')
     load_lib_build_parser(load_lib_build_subparser)
 
-    benchmarks_subparser = subparsers.add_parser(
-        'benchmark', description="Run applications benchmarks from the application's root directory.")
+    benchmarks_subparser = subparsers.add_parser('benchmark', description="Run examples benchmarks")
     benchmarks_parser(benchmarks_subparser)
     platform_assessment_subparser = subparsers.add_parser(
         'platform_assessment', description="Run applications benchmarks from arbitrary directories and platforms.")
@@ -53,7 +53,12 @@ def main(raw_args):
     elif args.subparser == 'test_copyright':
         test_copyrights(args.path, args.amend, args.exclude_json)
     else:
-        raise Exception('Please select: `load_lib_build` or `benchmark`')
+        err = ("Please select from one of:"
+               "\n\t`load_lib_build`"
+               "\n\t`benchmark`"
+               "\n\t`platform_assessment`"
+               "\n\t`test_copyright`")
+        raise Exception(err)
 
 
 if __name__ == "__main__":

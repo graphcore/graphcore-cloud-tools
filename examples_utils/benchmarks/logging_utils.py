@@ -119,7 +119,9 @@ def get_latest_checkpoint_path(checkpoint_root_dir: Path, variant_cmd: str) -> P
         try:
             latest_checkpoint_path = time_sorted_dirs[0]
         except:
-            logger.warn("Checkpoint file(s) in {checkpoint_dir} could not be found. Skipping uploading")
+            logger.warn(f"Checkpoint file(s) in {checkpoint_dir} could not be found. Skipping uploading")
+
+    logger.info(f"Checkpoints to be uploaded: {latest_checkpoint_path}")
 
     return latest_checkpoint_path
 
@@ -137,6 +139,9 @@ def get_wandb_link(stderr: str) -> str:
         if "https://wandb.sourcevertex.net" in line and "/runs/" in line:
             wandb_link = "https:/" + line.split("https:/")[1]
             wandb_link = wandb_link.replace("\n", "")
+
+    if wandb_link:
+        logger.info(f"Wandb link found from stdout/stderr: {wandb_link}")
 
     return wandb_link
 
@@ -272,7 +277,7 @@ def upload_checkpoints(upload_targets: list, checkpoint_path: Path, benchmark_pa
                    "\n4 - Enter the MFA code from your "
                    "authenticator app you use when logging into AWS in the "
                    "web browser etc.")
-            logger.info(msg)
+            logger.warn(msg)
 
 
 def upload_compile_time(wandb_link: str, results: dict):

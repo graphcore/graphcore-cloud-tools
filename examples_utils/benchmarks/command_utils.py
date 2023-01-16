@@ -321,7 +321,7 @@ def get_local_poprun_hosts(poprun_config: Dict) -> Tuple[list, int]:
     if num_hosts > 1:
         logger.info("Benchmark is running multiple instances over multiple hosts, preparing all hosts.")
     else:
-        logger.info("Only one value has been passed to the '--host' argument, "
+        logger.warn("Only one value has been passed to the '--host' argument, "
                     "assuming all instances defined for this benchmark will "
                     "run on this host only")
 
@@ -346,10 +346,10 @@ def get_local_poprun_hosts(poprun_config: Dict) -> Tuple[list, int]:
             poprun_hostnames.remove(hostname)
 
     if len(poprun_hostnames) == num_hosts:
-        logger.info("This machines hostname/IP could not be found in the "
+        logger.warn("This machines hostname/IP could not be found in the "
                     "values provided to the '--host' argument for poprun. "
-                    "Assuming that the first value in the list provided is the "
-                    "this machines hostname, and skipping interacting with the "
+                    "Assuming that the first value in the list provided is "
+                    "this machine's hostname, and skipping interacting with the "
                     "filesystem on it. If this is not the case, please use "
                     "either the host name as seen in the $HOSTNAME environment "
                     "variable, or using internal/external IP addresses.")

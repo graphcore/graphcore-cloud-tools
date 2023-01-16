@@ -330,6 +330,9 @@ def preprocess_args(args: argparse.Namespace) -> argparse.Namespace:
 
     """
 
+    # Resolve paths to benchmarks specs
+    args.spec = [str(Path(file).resolve()) for file in args.spec]
+
     # Force allow-wandb if user wants to upload checkpoints to wandb
     if "wandb" in args.upload_checkpoints:
         args.allow_wandb = True

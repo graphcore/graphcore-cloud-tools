@@ -51,7 +51,23 @@ except (ImportError, ModuleNotFoundError) as error:
 
 
 # Get the module logger
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
+
+# Progress spinner frames to iterate through
+progress_frames = [
+    "      ",
+    ">     ",
+    "=>    ",
+    "==>   ",
+    "===>  ",
+    "====> ",
+    "<====>",
+    " <====",
+    "  <===",
+    "   <==",
+    "    <=",
+    "     <",
+]
 
 # A dictionary which defines a benchmark
 BenchmarkDict = Dict
@@ -163,7 +179,9 @@ def run_and_monitor_progress(cmd: list,
             proc.kill()
 
         sys.stderr.write("\r")
-        sys.stderr.write(f"\tBenchmark elapsed time: {str(timedelta(seconds=total_time))} ({total_time} seconds)")
+        index = total_time % len(progress_frames)
+        sys.stderr.write(f"\tBenchmark elapsed time: {str(timedelta(seconds=total_time))} "
+                         f"({total_time} seconds) {progress_frames[index]}")
         sys.stderr.flush()
 
     sys.stderr.write("\r")
@@ -204,7 +222,8 @@ def run_benchmark_variant(
 
     """
 
-    logger.info(f"Running variant: '{variant_name}'")
+    if variant_name != benchmark_name:
+        logger.info(f"\tRunning variant: '{variant_name}'")
 
     # Purge data fields for compile only tests
     if args.compile_only:
@@ -479,9 +498,15 @@ def run_benchmarks(args: argparse.Namespace):
             with
 
     """
+
+    spec_files = ",".join([str(sf) for sf in args.spec if ".yml" in str(sf)])
+
+    # Load all benchmark configs from all files given
+    spec = {}
+    for spec_file in args.spec:
+        logger.info(f"Examining: '{spec_file}'")
     # Preprocess args to resolve any inconsistencies or cover up any gaps
     args = preprocess_args(args)
-    args.spec = [str(Path(file).resolve()) for file in args.spec]
 
     # check if dispatching jobs to a SLURM queue
     if args.submit_on_slurm and check_slurm_configured():
@@ -517,7 +542,7 @@ def run_benchmarks_from_spec(spec: Dict[str, BenchmarkDict], args: argparse.Name
     if args.custom_metrics_files is not None:
         import_metrics_hooks_files(args.custom_metrics_files)
     with open(output_log_path, "w", buffering=1) as listener:
-        print("\n" + "#" * 80)
+        print("#" * 80)
         logger.info(f"Logs at: {output_log_path}")
         print("#" * 80 + "\n")
 
@@ -584,11 +609,13 @@ def run_benchmarks_from_spec(spec: Dict[str, BenchmarkDict], args: argparse.Name
         for benchmark_name in variant_dictionary:
             benchmark_spec = spec.get(benchmark_name, {})
             logger.info("Running " + benchmark_name)
-            logger.info(f"Running {str(len(variant_dictionary[benchmark_name]))} variants:")
 
-            for variant_name in variant_dictionary[benchmark_name]:
-                name = variant_name.get("name")
-                logger.info(f"\t{name}")
+            if len(variant_dictionary) > 1:
+                logger.info(f"Running {str(len(variant_dictionary[benchmark_name]))} variants:")
+
+                for variant_name in variant_dictionary[benchmark_name]:
+                    name = variant_name.get("name")
+                    logger.info(f"\t{name}")
 
             result_list = []
             benchmark_result = dict()
@@ -625,9 +652,9 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
     )
     parser.add_argument(
         "--spec",
-        required=True,
         type=str,
         nargs="+",
+        default=["./benchmarks.yml"],
         help="Yaml files with benchmark spec",
     )
     parser.add_argument(
@@ -687,7 +714,8 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
         "--logging",
         choices=["DEBUG", "INFO", "ERROR", "CRITICAL", "WARNING"],
         default="INFO",
-        help="Specify the logging level",
+        help=("Specify the logging level set for poplar/popart (the example "
+              "itself, not this benchmarking module"),
     )
     parser.add_argument(
         "--no-code-sync",
@@ -704,8 +732,8 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--gc-monitor",
         action="store_true",
-        help=("Enable usage monitoring during benchmarks. when set, runs gc-monitor "
-              "every 5 seconds"),
+        help=("Enable usage monitoring during benchmarks. when set, runs "
+              "gc-monitor every 5 seconds"),
     )
     parser.add_argument(
         "--remove-dirs-after",
@@ -736,5 +764,6 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
         choices=["wandb", "s3"],
         help="List of locations to upload model checkpoints to",
     )
+
     parser.add_argument("--submit-on-slurm", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--slurm-machine-type", choices=["any", "mk2", "mk2w"], default="any", help=argparse.SUPPRESS)
