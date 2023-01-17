@@ -172,13 +172,16 @@ def configure_job_environment(args: argparse.ArgumentParser, variant_dict: Dict,
         packages = "tensorflow-1*${CPU_ARCH}*.whl ipu_tensorflow_addons-1*.whl"
     elif framework == "tf2":
         packages = "tensorflow-2*${CPU_ARCH}*.whl ipu_tensorflow_addons-2*.whl keras-2*.whl"
+    elif framework == "pop":
+        pass
     else:
         err_msg = "Benchmark name should begin with pytorch, popart, tf1 or tf2."
         raise ValueError(err_msg)
 
-    bash_script += textwrap.dedent(f"""
-        {pip_install_str} {packages}
-    """)
+    if framework != "pop":
+        bash_script += textwrap.dedent(f"""
+            {pip_install_str} {packages}
+        """)
 
     # application requirements
     bash_script += textwrap.dedent(f"""
@@ -576,6 +579,7 @@ def run_and_monitor_progress_on_slurm(cmd: list,
     stdout_log = None
     stderr_log = None
 
+    #  poll until job has been submited every 1s
     while proc.poll() is None and (stdout_path is None or stderr_path is None):
         if not job_submitted:
             o = proc.stdout.readline().decode()
@@ -583,6 +587,8 @@ def run_and_monitor_progress_on_slurm(cmd: list,
                 job_id = o.split()[-1]
                 job_submitted = True
                 logger.info(f"SLURM Job submitted. Job id: {job_id}. Job name: {job_name}")
+            else:
+                time.sleep(1)
         else:
             if Path(stdout_log_path).exists():
                 stdout_path = stdout_log_path
