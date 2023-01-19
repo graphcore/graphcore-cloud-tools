@@ -15,9 +15,13 @@ from typing import Tuple, Union, Dict, List
 import yaml
 import json
 import time
-from examples_utils.benchmarks.command_utils import (formulate_benchmark_command, get_benchmark_variants,
-                                                     get_local_poprun_hosts, get_poprun_config)
-from examples_utils.benchmarks.distributed_utils import (remove_distributed_filesystems, setup_distributed_filesystems)
+from examples_utils.benchmarks.command_utils import (
+    formulate_benchmark_command,
+    get_benchmark_variants,
+    get_local_poprun_hosts,
+    get_poprun_config,
+)
+from examples_utils.benchmarks.distributed_utils import remove_distributed_filesystems, setup_distributed_filesystems
 from examples_utils.benchmarks.environment_utils import (
     check_env,
     enter_benchmark_dir,
@@ -28,14 +32,23 @@ from examples_utils.benchmarks.environment_utils import (
     merge_environment_variables,
     preprocess_args,
 )
-from examples_utils.benchmarks.logging_utils import (WANDB_AVAILABLE, get_latest_checkpoint_path, get_wandb_link,
-                                                     print_benchmark_summary, save_results, upload_checkpoints,
-                                                     upload_compile_time)
+from examples_utils.benchmarks.logging_utils import (
+    WANDB_AVAILABLE,
+    get_latest_checkpoint_path,
+    get_wandb_link,
+    print_benchmark_summary,
+    save_results,
+    upload_checkpoints,
+    upload_compile_time,
+)
 from examples_utils.benchmarks.metrics_utils import additional_metrics, derive_metrics, extract_metrics
 from examples_utils.benchmarks.custom_metrics import process_registered_metrics, import_metrics_hooks_files
 from examples_utils.benchmarks.profiling_utils import add_profiling_vars
-from examples_utils.benchmarks.slurm_utils import (check_slurm_configured, configure_slurm_job,
-                                                   run_and_monitor_progress_on_slurm)
+from examples_utils.benchmarks.slurm_utils import (
+    check_slurm_configured,
+    configure_slurm_job,
+    run_and_monitor_progress_on_slurm,
+)
 
 try:
     # Plotting of IPU usage is only supported with [jupyter] requirements
@@ -84,11 +97,9 @@ def should_reattempt_benchmark(variant, output, err, exitcode) -> Union[bool, st
     return False
 
 
-def run_and_monitor_progress(cmd: list,
-                             listener: TextIOWrapper,
-                             timeout: int = None,
-                             monitor_ipus: bool = True,
-                             **kwargs) -> Tuple[str, str, int, List[str]]:
+def run_and_monitor_progress(
+    cmd: list, listener: TextIOWrapper, timeout: int = None, monitor_ipus: bool = True, **kwargs
+) -> Tuple[str, str, int, List[str]]:
     """Run the benchmark monitor progress.
 
     Args:
@@ -148,10 +159,9 @@ def run_and_monitor_progress(cmd: list,
         while t.is_alive():
             try:
                 timestamp = datetime.now().strftime("%Y-%m-%d-%H.%M.%S.%f")
-                ipu_log_line = json.dumps({
-                    "timestamp": timestamp,
-                    **json.loads(subprocess.check_output(["gc-monitor", "--json"]))
-                })
+                ipu_log_line = json.dumps(
+                    {"timestamp": timestamp, **json.loads(subprocess.check_output(["gc-monitor", "--json"]))}
+                )
                 ipu_monitoring.append(f"{ipu_log_line}\n")
                 time.sleep(5)
             except:
@@ -180,8 +190,10 @@ def run_and_monitor_progress(cmd: list,
 
         sys.stderr.write("\r")
         index = total_time % len(progress_frames)
-        sys.stderr.write(f"\tBenchmark elapsed time: {str(timedelta(seconds=total_time))} "
-                         f"({total_time} seconds) {progress_frames[index]}")
+        sys.stderr.write(
+            f"\tBenchmark elapsed time: {str(timedelta(seconds=total_time))} "
+            f"({total_time} seconds) {progress_frames[index]}"
+        )
         sys.stderr.flush()
 
     sys.stderr.write("\r")
@@ -198,12 +210,12 @@ def run_and_monitor_progress(cmd: list,
 
 
 def run_benchmark_variant(
-        variant_name: str,
-        benchmark_name: str,
-        variant_dict: dict,
-        benchmark_dict: dict,
-        listener: TextIOWrapper,
-        args: argparse.Namespace,
+    variant_name: str,
+    benchmark_name: str,
+    variant_dict: dict,
+    benchmark_dict: dict,
+    listener: TextIOWrapper,
+    args: argparse.Namespace,
 ) -> dict:
     """Run a variant and collect results.
 
@@ -289,10 +301,12 @@ def run_benchmark_variant(
 
         if is_distributed:
             if args.no_code_sync:
-                logger.info("Filesystem (venv/code) syncing has been disabled "
-                            "with the '--no-code-sync' arg. Skipping copying "
-                            f"the files at {args.venv_path} and "
-                            f"{args.examples_path} automatically to all hosts.")
+                logger.info(
+                    "Filesystem (venv/code) syncing has been disabled "
+                    "with the '--no-code-sync' arg. Skipping copying "
+                    f"the files at {args.venv_path} and "
+                    f"{args.examples_path} automatically to all hosts."
+                )
             else:
                 # Setup temporary filesystems on all hosts and modify cmd to use this
                 setup_distributed_filesystems(args, poprun_hostnames)
@@ -303,8 +317,9 @@ def run_benchmark_variant(
 
     # configure benchmark to run on slurm
     if args.submit_on_slurm:
-        slurm_config = configure_slurm_job(args, benchmark_dict, poprun_config, cmd, variant_name, variant_log_dir, cwd,
-                                           env)
+        slurm_config = configure_slurm_job(
+            args, benchmark_dict, poprun_config, cmd, variant_name, variant_log_dir, cwd, env
+        )
 
     start_time = datetime.now()
     logger.info(f"Start test: {start_time}")
@@ -339,25 +354,29 @@ def run_benchmark_variant(
 
     # Teardown temporary filesystem on all hosts
     if args.no_code_sync:
-        logger.info("Filesystem (venv/code) syncing has been disabled "
-                    "with the '--no-code-sync' arg. Skipping removing "
-                    f"the files at {args.venv_path} and "
-                    f"{args.examples_path} automatically on all hosts.")
+        logger.info(
+            "Filesystem (venv/code) syncing has been disabled "
+            "with the '--no-code-sync' arg. Skipping removing "
+            f"the files at {args.venv_path} and "
+            f"{args.examples_path} automatically on all hosts."
+        )
         args.remove_dirs_after = False
 
     if not args.submit_on_slurm and args.remove_dirs_after:
         if is_distributed:
             remove_distributed_filesystems(args, poprun_hostnames)
         else:
-            logger.info("'--remove-dirs-after' has been set but this "
-                        "benchmark has not been specified to use multiple "
-                        "hosts, and so there are no remote temporary "
-                        "filesystems to delete. Local filesystems on this "
-                        "host will not automatically be deleted.")
+            logger.info(
+                "'--remove-dirs-after' has been set but this "
+                "benchmark has not been specified to use multiple "
+                "hosts, and so there are no remote temporary "
+                "filesystems to delete. Local filesystems on this "
+                "host will not automatically be deleted."
+            )
 
     # If process didnt end as expected
     if exitcode:
-        err = (f"Benchmark ERROR, exited with code: ({str(exitcode)}). Please check logs for more information.")
+        err = f"Benchmark ERROR, exited with code: ({str(exitcode)}). Please check logs for more information."
         logger.error(err)
 
         if args.stop_on_error:
@@ -380,10 +399,11 @@ def run_benchmark_variant(
         results = additional_metrics(
             results,
             total_runtime,
-            str(' '.join(cmd)),
+            str(" ".join(cmd)),
             exitcode,
             new_env,  # just additional environment variables
-            git_commit_hash)
+            git_commit_hash,
+        )
 
     # Get 'derived' metrics, these are metrics 'derived' from other metrics
     results, derivation_failure = derive_metrics(
@@ -445,10 +465,7 @@ def run_benchmark_variant(
         "compilation_end_time": str(results["total_compiling_time"]["mean"]),
         "test_duration": str(total_runtime),
         "exitcode": exitcode,
-        "log_paths": {
-            "out": str(outlog_path),
-            "err": str(errlog_path)
-        },
+        "log_paths": {"out": str(outlog_path), "err": str(errlog_path)},
     }
 
     # These failure points are not caught normally, check here
@@ -479,13 +496,16 @@ def process_notebook_to_command(variant, name="unknown"):
     unknown_entries = [f for f in notebook_def if f not in allowed_fields]
     if unknown_entries:
         raise yaml.YAMLError(f"Notebook entry '{name}' has un-recognised options: {unknown_entries}")
-    variant["cmd"] = " ".join([
-        f"python3",
-        "-m",
-        "examples_utils.benchmarks.notebook_utils",
-        str(notebook_def['file']),
-        str(notebook_def.get('working_directory', '.')),
-    ] + (["--timeout", str(notebook_def['timeout'])] if "timeout" in notebook_def else []))
+    variant["cmd"] = " ".join(
+        [
+            f"python3",
+            "-m",
+            "examples_utils.benchmarks.notebook_utils",
+            str(notebook_def["file"]),
+            str(notebook_def.get("working_directory", ".")),
+        ]
+        + (["--timeout", str(notebook_def["timeout"])] if "timeout" in notebook_def else [])
+    )
 
     return variant
 
@@ -558,7 +578,7 @@ def run_benchmarks_from_spec(spec: Dict[str, BenchmarkDict], args: argparse.Name
         for benchmark_name in benchmarks_list:
             # Check if this benchmark exists
             if benchmark_name not in list(spec.keys()):
-                err = (f"Benchmark {benchmark_name} not found in any of the provided spec files, exiting.")
+                err = f"Benchmark {benchmark_name} not found in any of the provided spec files, exiting."
                 logger.error(err)
                 raise ValueError(err)
 
@@ -568,7 +588,7 @@ def run_benchmarks_from_spec(spec: Dict[str, BenchmarkDict], args: argparse.Name
                 continue
 
             # is provided, or they are explicitly named in --benchmarks
-            if ((args.benchmark is None) and ("_conv" in benchmark_name) and (not args.include_convergence)):
+            if (args.benchmark is None) and ("_conv" in benchmark_name) and (not args.include_convergence):
                 continue
             spec_entry = spec.get(benchmark_name, {})
             if "gen" in benchmark_name:
@@ -578,15 +598,17 @@ def run_benchmarks_from_spec(spec: Dict[str, BenchmarkDict], args: argparse.Name
             # Enforce DATASETS_DIR set only if this benchmark needs real data
             if not (spec_entry.get("generated") or spec_entry.get("synthetic")):
                 if "DATASETS_DIR" not in os.environ:
-                    err = (f"Benchmark '{benchmark_name}' requires a dataset "
-                           "as it is not configured to use generated or "
-                           "synthetic ('gen' or 'synth' in the benchmark name) "
-                           "data. The environment variable 'DATASETS_DIR' is "
-                           "required for locating the dataset for this "
-                           "dataset. Please set the DATASETS_DIR environment "
-                           "variable to be the base of the dataset directory. "
-                           "For example, run: "
-                           "'export DATASETS_DIR=/localdata/datasets/'")
+                    err = (
+                        f"Benchmark '{benchmark_name}' requires a dataset "
+                        "as it is not configured to use generated or "
+                        "synthetic ('gen' or 'synth' in the benchmark name) "
+                        "data. The environment variable 'DATASETS_DIR' is "
+                        "required for locating the dataset for this "
+                        "dataset. Please set the DATASETS_DIR environment "
+                        "variable to be the base of the dataset directory. "
+                        "For example, run: "
+                        "'export DATASETS_DIR=/localdata/datasets/'"
+                    )
                     logger.error(err)
                     raise ValueError(err)
 
@@ -691,18 +713,19 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--include-convergence",
         action="store_true",
-        help=("Include convergence tests (name ending in '_conv') in the set "
-              "of benchmarks being run. This only has any effect if "
-              "convergence tests would be run anyway i.e. if there are "
-              "convergence benchmarks in the yaml file provided in '--spec' or "
-              "if the convergence test required is named explicitly in "
-              "'--benchmarks'."),
+        help=(
+            "Include convergence tests (name ending in '_conv') in the set "
+            "of benchmarks being run. This only has any effect if "
+            "convergence tests would be run anyway i.e. if there are "
+            "convergence benchmarks in the yaml file provided in '--spec' or "
+            "if the convergence test required is named explicitly in "
+            "'--benchmarks'."
+        ),
     )
     parser.add_argument(
         "--stop-on-error",
         action="store_true",
-        help=("Stop on the first error and terminate all runs, instead of "
-              "proceeding to the next benchmark"),
+        help=("Stop on the first error and terminate all runs, instead of " "proceeding to the next benchmark"),
     )
     parser.add_argument(
         "--log-dir",
@@ -714,41 +737,44 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
         "--logging",
         choices=["DEBUG", "INFO", "ERROR", "CRITICAL", "WARNING"],
         default="INFO",
-        help=("Specify the logging level set for poplar/popart (the example "
-              "itself, not this benchmarking module"),
+        help=("Specify the logging level set for poplar/popart (the example " "itself, not this benchmarking module"),
     )
     parser.add_argument(
         "--no-code-sync",
         action="store_true",
-        help=("Disable automatic syncing of venv/code files across all hosts "
-              "in multi-host benchmarks."),
+        help=("Disable automatic syncing of venv/code files across all hosts " "in multi-host benchmarks."),
     )
     parser.add_argument(
         "--profile",
         action="store_true",
-        help=("Enable profiling for the benchmarks, setting the appropriate "
-              "environment variables and storing profiling reports in the cwd"),
+        help=(
+            "Enable profiling for the benchmarks, setting the appropriate "
+            "environment variables and storing profiling reports in the cwd"
+        ),
     )
     parser.add_argument(
         "--gc-monitor",
         action="store_true",
-        help=("Enable usage monitoring during benchmarks. when set, runs "
-              "gc-monitor every 5 seconds"),
+        help=("Enable usage monitoring during benchmarks. when set, runs " "gc-monitor every 5 seconds"),
     )
     parser.add_argument(
         "--remove-dirs-after",
         action="store_true",
-        help=("Whether or not to remove all directories used for benchmarking "
-              "from all hosts involved after the benchmark is complete. This "
-              "includes the examples, SDKs and venvs directories."),
+        help=(
+            "Whether or not to remove all directories used for benchmarking "
+            "from all hosts involved after the benchmark is complete. This "
+            "includes the examples, SDKs and venvs directories."
+        ),
     )
     parser.add_argument(
         "--requirements-file",
         default=str(Path.cwd().joinpath("requirements.txt")),
         type=str,
-        help=("Path to the application's requirements file. Should only be "
-              "manually provided if requested by this benchmarking module. "
-              "Defaults to the parent dir of the benchmarks.yml file."),
+        help=(
+            "Path to the application's requirements file. Should only be "
+            "manually provided if requested by this benchmarking module. "
+            "Defaults to the parent dir of the benchmarks.yml file."
+        ),
     )
     parser.add_argument(
         "--timeout",

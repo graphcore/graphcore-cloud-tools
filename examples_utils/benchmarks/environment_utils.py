@@ -21,27 +21,27 @@ def parse_vipu_server() -> Optional[str]:
     out = out.decode()
     m = re.search("host: (.*):", out)
     if not m:
-        err = ("vipu --server-version output could not be parsed. Could not identify the"
-               " host of the V-IPU server, please set the IPUOF_VIPU_API_HOST environment"
-               " variable according to the V-IPU documentation. "
-               f"vipu --server-version returned:\n{out}")
+        err = (
+            "vipu --server-version output could not be parsed. Could not identify the"
+            " host of the V-IPU server, please set the IPUOF_VIPU_API_HOST environment"
+            " variable according to the V-IPU documentation. "
+            f"vipu --server-version returned:\n{out}"
+        )
         logger.error(err)
         return None
     return m.groups()[0]
 
 
 POPRUN_VARS = {
-    "HOSTS": ("Comma seperated list of IP addresses/names of the machines you want "
-              "to run on. Try to copy across ssh-keys before attempting if "
-              "possible. e.g. 10.1.3.101,10.1.3.102,... or lr17-1,lr17-2,..."),
-    "IPUOF_VIPU_API_PARTITION_ID": ("Name of the Virtual IPU partition. Can be found with 'vipu list "
-                                    "partitions'."),
-    "CLUSTER": ("Name of the Virtual IPU cluster. Can be found with 'vipu list "
-                "partition'."),
-    "TCP_IF_INCLUDE": ("The range of network interfaces available to use for poprun to "
-                       "communicate between hosts."),
-    "VIPU_CLI_API_HOST": ("The IP address/name of the HOST where the virtual IPU server is "
-                          "running."),
+    "HOSTS": (
+        "Comma seperated list of IP addresses/names of the machines you want "
+        "to run on. Try to copy across ssh-keys before attempting if "
+        "possible. e.g. 10.1.3.101,10.1.3.102,... or lr17-1,lr17-2,..."
+    ),
+    "IPUOF_VIPU_API_PARTITION_ID": ("Name of the Virtual IPU partition. Can be found with 'vipu list " "partitions'."),
+    "CLUSTER": ("Name of the Virtual IPU cluster. Can be found with 'vipu list " "partition'."),
+    "TCP_IF_INCLUDE": ("The range of network interfaces available to use for poprun to " "communicate between hosts."),
+    "VIPU_CLI_API_HOST": ("The IP address/name of the HOST where the virtual IPU server is " "running."),
 }
 
 # Values must be a tuple of strings or None, or a function to generate them
@@ -50,28 +50,30 @@ FALLBACK_VAR_FUNCTIONS = {
         os.getenv("IPUOF_VIPU_API_HOST"),
         parse_vipu_server,
     ),
-    "IPUOF_VIPU_API_PARTITION_ID": (os.getenv("PARTITION"), )
+    "IPUOF_VIPU_API_PARTITION_ID": (os.getenv("PARTITION"),),
 }
 
 WANDB_VARS = {
-    "WANDB_API_KEY": ("The API access key for your W&B account. Available from your W&B "
-                      "account > settings > API keys."),
-    "WANDB_BASE_URL": ("The base URL for your W&B server (www.wandb.<domain name>.net). "
-                       "Available by checking your organisations wandb account."),
+    "WANDB_API_KEY": (
+        "The API access key for your W&B account. Available from your W&B " "account > settings > API keys."
+    ),
+    "WANDB_BASE_URL": (
+        "The base URL for your W&B server (www.wandb.<domain name>.net). "
+        "Available by checking your organisations wandb account."
+    ),
 }
 
 AWSCLI_VARS = {
-    "AWS_ACCESS_KEY_ID": ("The AWSCLI access key for the S3 storage account. Available from "
-                          "your AWS account > security credentials."),
-    "AWS_SECRET_ACCESS_KEY": ("The AWSCLI secret key for your AWS account. Available from your AWS "
-                              "account > security credentials."),
+    "AWS_ACCESS_KEY_ID": (
+        "The AWSCLI access key for the S3 storage account. Available from " "your AWS account > security credentials."
+    ),
+    "AWS_SECRET_ACCESS_KEY": (
+        "The AWSCLI secret key for your AWS account. Available from your AWS " "account > security credentials."
+    ),
 }
 
 SLURM_ENV_VARS = {
-    "SLURM_HOST_SUBNET_MASK": {
-        "help": "Host subnet mask for all allocations from the SLURM queue.",
-        "default": "ens5"
-    }
+    "SLURM_HOST_SUBNET_MASK": {"help": "Host subnet mask for all allocations from the SLURM queue.", "default": "ens5"}
 }
 
 
@@ -95,9 +97,11 @@ def _check_cmd_for_missing_poprun_vars(benchmark_name: str, cmd: str):
             missing_poprun_vars.append(env_var)
 
     if missing_poprun_vars:
-        err = (f"{len(missing_poprun_vars)} environment variables are needed by "
-               f"command {benchmark_name} but are not defined: "
-               f"{missing_poprun_vars}. Hints: \n")
+        err = (
+            f"{len(missing_poprun_vars)} environment variables are needed by "
+            f"command {benchmark_name} but are not defined: "
+            f"{missing_poprun_vars}. Hints: \n"
+        )
         err += "".join([f"\n\t{missing} : {POPRUN_VARS[missing]}" for missing in missing_poprun_vars])
 
         logger.error(err)
@@ -121,7 +125,7 @@ def check_env(args: argparse.Namespace, benchmark_name: str, cmd: str):
     if args.submit_on_slurm:
         for k, v in SLURM_ENV_VARS.items():
             if k not in os.environ:
-                warn_msg = F"{k}: {v['help']} has not been set. Falling back to the default value of: {v['default']}."
+                warn_msg = f"{k}: {v['help']} has not been set. Falling back to the default value of: {v['default']}."
                 logger.warn(warn_msg)
                 os.environ[k] = v["default"]
 
@@ -133,24 +137,28 @@ def check_env(args: argparse.Namespace, benchmark_name: str, cmd: str):
         # Determine if wandb login has not been done already
         netrc_path = Path(os.environ["HOME"], ".netrc")
         if netrc_path.exists() and os.stat(Path(os.environ["HOME"], ".netrc")).st_size == 0:
-            logger.warn("wandb appears to not have been logged in. Checking "
-                        "for environment variables to be used instead...")
+            logger.warn(
+                "wandb appears to not have been logged in. Checking " "for environment variables to be used instead..."
+            )
             missing_env_vars.extend([env_var for env_var in WANDB_VARS.keys() if os.getenv(env_var) is None])
 
     # Check AWSCLI env vars if required
     if "s3" in args.upload_checkpoints:
         # Check for default credentials file or a env var to its path first
-        if (not (Path(os.getenv("HOME"), ".aws", "credentials").exists())
-                and (not os.getenv("AWS_SHARED_CREDENTIALS_FILE"))):
+        if not (Path(os.getenv("HOME"), ".aws", "credentials").exists()) and (
+            not os.getenv("AWS_SHARED_CREDENTIALS_FILE")
+        ):
             logger.warn("AWSCLI has not been configured. Checking for environment variables to be used instead...")
             missing_env_vars.extend([env_var for env_var in AWSCLI_VARS.keys() if os.getenv(env_var) is None])
 
     # Print out all missing vars with hints for the user
     joint_vars_dict = {**WANDB_VARS, **AWSCLI_VARS}
     if missing_env_vars:
-        err = (f"{len(missing_env_vars)} environment variables are needed "
-               f"because of the arguments passed to this command, but are not "
-               f"defined: {missing_env_vars}.\nHints: \n")
+        err = (
+            f"{len(missing_env_vars)} environment variables are needed "
+            f"because of the arguments passed to this command, but are not "
+            f"defined: {missing_env_vars}.\nHints: \n"
+        )
         err += "".join([f"\t{missing} : {joint_vars_dict[missing]}\n" for missing in missing_env_vars])
 
         logger.error(err)
@@ -231,10 +239,12 @@ def infer_paths(args: argparse.Namespace, benchmark_dict: dict) -> argparse.Name
 
     args.sdk_path = os.getenv("POPLAR_SDK_ENABLED")
     if args.sdk_path is None:
-        err = ("It appears that a poplar SDK has not been enabled, determined "
-               "by 'POPLAR_SDK_ENABLED' environment variable not detected in "
-               "this environment. Please make sure the SDK is enabled in this "
-               "environment (use 'source' when enabling/activating).")
+        err = (
+            "It appears that a poplar SDK has not been enabled, determined "
+            "by 'POPLAR_SDK_ENABLED' environment variable not detected in "
+            "this environment. Please make sure the SDK is enabled in this "
+            "environment (use 'source' when enabling/activating)."
+        )
         logger.error(err)
         raise EnvironmentError(err)
     else:
@@ -242,11 +252,13 @@ def infer_paths(args: argparse.Namespace, benchmark_dict: dict) -> argparse.Name
 
     args.venv_path = os.getenv("VIRTUAL_ENV")
     if args.venv_path is None:
-        err = ("It appears that a python virtual environment has not been "
-               "activated, determined by 'VIRTUAL_ENV' environment variable "
-               "not detected in this environment. Please make sure the python "
-               "virtual environment is activate in this environment (use "
-               "'source' when enabling/activating).")
+        err = (
+            "It appears that a python virtual environment has not been "
+            "activated, determined by 'VIRTUAL_ENV' environment variable "
+            "not detected in this environment. Please make sure the python "
+            "virtual environment is activate in this environment (use "
+            "'source' when enabling/activating)."
+        )
         logger.error(err)
         raise EnvironmentError(err)
     else:
@@ -258,7 +270,7 @@ def infer_paths(args: argparse.Namespace, benchmark_dict: dict) -> argparse.Name
 def get_git_commit_hash() -> str:
     # assumed we're in the top level directory of the git repo
     try:
-        process = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode(sys.stdout.encoding).strip()
+        process = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode(sys.stdout.encoding).strip()
         return str(process)
     except Exception as error:
         logger.warning(f"Failed to get git revision: {error}")

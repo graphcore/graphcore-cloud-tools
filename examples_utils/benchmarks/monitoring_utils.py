@@ -5,10 +5,12 @@ import json
 
 try:
     import pandas as pd
+
     # while not used explicitely need to check
     from matplotlib import pyplot as plt
 except (ImportError, ModuleNotFoundError) as error:
     from . import _incorrect_requirement_variant_error
+
     raise _incorrect_requirement_variant_error from error
 
 
@@ -37,5 +39,5 @@ def plot_ipu_usage(directory: Path):
     ax.set_ylabel("Number of IPUs in use")
     leg = ax.legend()
     leg.set_bbox_to_anchor((1, -0.25))
-    fig.savefig(directory / "ipu_usage.png", dpi=300, bbox_extra_artists=(leg, ), bbox_inches='tight')
+    fig.savefig(directory / "ipu_usage.png", dpi=300, bbox_extra_artists=(leg,), bbox_inches="tight")
     return ax.figure

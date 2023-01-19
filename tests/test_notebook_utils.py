@@ -22,11 +22,15 @@ def test_notebook_runner_captures_outputs():
 
 def test_cli_equivalence():
     notebook_path = TEST_DIRECTORY / "test_files/sample.ipynb"
-    cli_out = subprocess.check_output([
-        sys.executable, "-m", "examples_utils.benchmarks.notebook_utils",
-        str(notebook_path),
-        str(notebook_path.parent)
-    ])
+    cli_out = subprocess.check_output(
+        [
+            sys.executable,
+            "-m",
+            "examples_utils.benchmarks.notebook_utils",
+            str(notebook_path),
+            str(notebook_path.parent),
+        ]
+    )
     std_streams = notebook_utils.run_notebook(notebook_path, notebook_path.parent)
 
     # There are slightly different newlines from the cli and the function
@@ -64,22 +68,20 @@ class TestNotebook2Cmd:
         with pytest.raises(ValueError, match="Invalid combination of entries"):
             process_notebook_to_command(variant)
 
-    @pytest.mark.parametrize("variant_factory", [
-        lambda file: {
-            "notebook": {
-                "file": file
+    @pytest.mark.parametrize(
+        "variant_factory",
+        [
+            lambda file: {
+                "notebook": {"file": file},
             },
-        },
-        lambda file: {
-            "notebook": {
-                "file": file,
-                "working_directory": file.parent
+            lambda file: {
+                "notebook": {"file": file, "working_directory": file.parent},
             },
-        },
-        lambda file: {
-            "notebook": file,
-        },
-    ])
+            lambda file: {
+                "notebook": file,
+            },
+        ],
+    )
     def test_replaces_notebook(self, variant_factory):
         notebook_path = TEST_DIRECTORY / "test_files/sample.ipynb"
         variant = variant_factory(notebook_path)
@@ -91,15 +93,17 @@ class TestNotebook2Cmd:
 
 def test_end_2_end(tmp_path: Path):
     yaml_file = tmp_path / "sample.yaml"
-    yaml_file.write_text(f"""
+    yaml_file.write_text(
+        f"""
 notebook_benchmark:
     generated: true
     notebook:
         file: {SAMPLE_NOTEBOOK}
-    """)
+    """
+    )
     out = subprocess.check_output(
-        ["python3", "-m", "examples_utils", "benchmark", "--gc-monitor", "--spec",
-         str(yaml_file)])
+        ["python3", "-m", "examples_utils", "benchmark", "--gc-monitor", "--spec", str(yaml_file)]
+    )
     assert "PASSED notebook_benchmark::notebook_benchmark" in out.decode()
 
 

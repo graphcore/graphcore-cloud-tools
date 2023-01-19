@@ -1,0 +1,33 @@
+# NOTE: The versions can be updated by calling
+#        pre-commit autoupdate
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: check-json
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: debug-statements
+      - id: check-added-large-files
+      - id: no-commit-to-branch
+        args: [--branch, master, --branch, main]
+  - repo: https://github.com/psf/black
+    rev: 22.12.0
+    hooks:
+      - id: black
+        args: [--line-length, "120"]
+  - repo: https://github.com/ssciwr/clang-format-hook
+    rev: v15.0.6
+    hooks:
+      - id: clang-format
+        args: [-i]
+  - repo: local
+    hooks:
+    - id: copyright-header-check
+      name: Copyright header check
+      description: Ensures that files have the proper copyright line at the top
+      entry: python3 -m examples_utils test_copyright --amend
+      pass_filenames: false
+      language: python
+      additional_dependencies:
+        - 'git+https://github.com/graphcore/examples-utils@latest_stable'

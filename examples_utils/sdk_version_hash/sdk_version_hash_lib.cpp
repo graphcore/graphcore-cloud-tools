@@ -12,20 +12,21 @@
 namespace py = pybind11;
 
 std::string getSDKVersionHash() {
-    // Replace parenthesis and space in version string so
-    // we can easily use the results as a variable in a
-    // Makefile and on the compiler command line:
-    std::string version = poplar::packageHash();
-    for (char &c : version) {
-        if (c == '(' || c == ')' || c == ' ') {
-            c = '_';
-        }
+  // Replace parenthesis and space in version string so
+  // we can easily use the results as a variable in a
+  // Makefile and on the compiler command line:
+  std::string version = poplar::packageHash();
+  for (char &c : version) {
+    if (c == '(' || c == ')' || c == ' ') {
+      c = '_';
     }
-    return version;
+  }
+  return version;
 }
 
 PYBIND11_MODULE(sdk_version_hash_lib, m) {
-  m.def("sdk_version_hash", &getSDKVersionHash, "Graphcore SDK version hash (sanitised `poplar::packageHash`)");
+  m.def("sdk_version_hash", &getSDKVersionHash,
+        "Graphcore SDK version hash (sanitised `poplar::packageHash`)");
 };
 
 // -------------- cppimport --------------

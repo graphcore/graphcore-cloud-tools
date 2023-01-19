@@ -17,7 +17,7 @@ from pathlib import Path
 import shutil
 import shlex
 
-from examples_utils.benchmarks.command_utils import (get_num_ipus, query_option_in_cmd)
+from examples_utils.benchmarks.command_utils import get_num_ipus, query_option_in_cmd
 
 # Get the module logger
 logger = logging.getLogger(__name__)
@@ -28,15 +28,15 @@ class SlurmBenchmarkError(Exception):
 
 
 def check_slurm_configured() -> bool:
-    proc = subprocess.run("sinfo; sinfo | grep neverland",
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE,
-                          env=os.environ,
-                          shell=True)
+    proc = subprocess.run(
+        "sinfo; sinfo | grep neverland", stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ, shell=True
+    )
     if proc.returncode != 0:
-        err_msg = ("You provided --submit-on-slurm however the use of SLURM is either "
-                   "not configured on this host, or, the configured SLURM queue is not "
-                   "compatible. Please contact the maintainers of this package for more information. ")
+        err_msg = (
+            "You provided --submit-on-slurm however the use of SLURM is either "
+            "not configured on this host, or, the configured SLURM queue is not "
+            "compatible. Please contact the maintainers of this package for more information. "
+        )
         raise SlurmBenchmarkError(err_msg)
 
     return True
@@ -59,9 +59,11 @@ def configure_job_working_directory(job_wd: str) -> str:
     Returns:
         bash instruction (str): cd to job working directory
     """
-    return textwrap.dedent(f"""
+    return textwrap.dedent(
+        f"""
         cd {job_wd}
-    """)
+    """
+    )
 
 
 def configure_python_command(cmd: list) -> str:
@@ -72,13 +74,16 @@ def configure_python_command(cmd: list) -> str:
         bash instruction (str): benchmark variant python command
     """
     python_index = query_option_in_cmd(cmd, ["python", "python3"])
-    return textwrap.dedent(f"""
+    return textwrap.dedent(
+        f"""
         {shlex.join(cmd[python_index:])}
-    """)
+    """
+    )
 
 
-def configure_job_environment(args: argparse.ArgumentParser, variant_dict: Dict, variant_name: str,
-                              variant_log_dir: str) -> str:
+def configure_job_environment(
+    args: argparse.ArgumentParser, variant_dict: Dict, variant_name: str, variant_log_dir: str
+) -> str:
     """Add instruction to bash job script to:
     1. Activate poplar SDK
     2. Create and activate a python venv
@@ -86,8 +91,8 @@ def configure_job_environment(args: argparse.ArgumentParser, variant_dict: Dict,
     Args:
         args (argparse.Namespace): Arguments passed to run the benchmarks
             with
-        variant (Dict): Dictionary containing information to configure the job environment. Path to requirements.txt 
-            for installing python dependencies. Path/list of required system libraries e.g. libturbojpeg. Pre run commands to be 
+        variant (Dict): Dictionary containing information to configure the job environment. Path to requirements.txt
+            for installing python dependencies. Path/list of required system libraries e.g. libturbojpeg. Pre run commands to be
             executed before running the benchmark command e.g. make/ make clean.
         variant_name (str): Name of the benchmark variant being run
         variant_log_dir (str): Path for storing this variants outputs
@@ -99,14 +104,15 @@ def configure_job_environment(args: argparse.ArgumentParser, variant_dict: Dict,
     # get application root path
     variant_log_dir_parts = Path(variant_dict["benchmark_path"]).parts
     examples_internal_index = variant_log_dir_parts.index("examples-internal")
-    application_root = Path(*variant_log_dir_parts[0:examples_internal_index + 4])
+    application_root = Path(*variant_log_dir_parts[0 : examples_internal_index + 4])
 
     # make sure requirements exists in variant_dict
     if "requirements_path" not in variant_dict:
         err_msg = (
             "To run on SLURM, benchmark must have a field with key `requirements_path` "
             "that details the path from the root of the application to requirements.txt (inclusive) "
-            "eg requirements_path=APPLICATION_ROOT/path/to/requirements.txt where APPLICATION_ROOT is not included.")
+            "eg requirements_path=APPLICATION_ROOT/path/to/requirements.txt where APPLICATION_ROOT is not included."
+        )
         raise SlurmBenchmarkError(err_msg)
 
     requirements_path = application_root / Path(variant_dict.get("requirements_path"))
@@ -123,7 +129,8 @@ def configure_job_environment(args: argparse.ArgumentParser, variant_dict: Dict,
     pre_run_commands = variant_dict.get("pre_run_commands", None)
     pip_install_str = "python3 -m pip install --no-cache-dir"
 
-    bash_script = textwrap.dedent(f"""
+    bash_script = textwrap.dedent(
+        f"""
         ORIG_DIR=$(pwd)
         echo "[INFO] Enabling Poplar SDK at {args.sdk_path}"
         cd {args.sdk_path}
@@ -139,10 +146,12 @@ def configure_job_environment(args: argparse.ArgumentParser, variant_dict: Dict,
         
         echo "[INFO] Upgrading pip, setuptools and wheel"
         {pip_install_str} --upgrade setuptools wheel pip 
-    """)
+    """
+    )
 
     # determine cpu arch for tf1 & tf2 wheels
-    bash_script += textwrap.dedent("""
+    bash_script += textwrap.dedent(
+        """
         echo "[INFO] determining CPU arch"
         amd_arch=$(cpuinfo | grep -i amd)  
         intel_arch=$(cpuinfo | grep -i intel)
@@ -158,12 +167,15 @@ def configure_job_environment(args: argparse.ArgumentParser, variant_dict: Dict,
         fi
 
         echo "[INFO] CPU arch is ${CPU_ARCH}"
-    """)
+    """
+    )
 
     # Determine framework used and install packages needed
-    bash_script += textwrap.dedent("""
+    bash_script += textwrap.dedent(
+        """
         echo "[INFO] Installing framework wheel files"
-    """)
+    """
+    )
 
     framework = variant_name[0:3]
     if framework == "pyt":
@@ -179,50 +191,62 @@ def configure_job_environment(args: argparse.ArgumentParser, variant_dict: Dict,
         raise ValueError(err_msg)
 
     if framework != "pop":
-        bash_script += textwrap.dedent(f"""
+        bash_script += textwrap.dedent(
+            f"""
             {pip_install_str} {packages}
-        """)
+        """
+        )
 
     # application requirements
-    bash_script += textwrap.dedent(f"""
+    bash_script += textwrap.dedent(
+        f"""
         echo "[INFO] Installing application requirements"
         cd {application_root}
         {pip_install_str} -r {requirements_path}
         echo "[INFO] Installed application requirements"
-    """)
+    """
+    )
 
     # run build commands
-    bash_script += textwrap.dedent(f"""
+    bash_script += textwrap.dedent(
+        f"""
         echo "[INFO] Running pre run commands"
-    """)
+    """
+    )
 
     if pre_run_commands:
         for cmd in pre_run_commands:
-            bash_script += textwrap.dedent(f"""
+            bash_script += textwrap.dedent(
+                f"""
                 eval {cmd}
-            """)
+            """
+            )
 
-    bash_script += textwrap.dedent(f'''
+    bash_script += textwrap.dedent(
+        f"""
         echo "[INFO] Finished running pre run commands"
-    ''')
+    """
+    )
 
     # go back to original dir
-    bash_script += textwrap.dedent("""
+    bash_script += textwrap.dedent(
+        """
         # go back to original directory"
         cd $ORIG_DIR
-    """)
+    """
+    )
 
     return bash_script
 
 
 def configure_hosts(poprun_config: dict, num_ipus: int) -> Tuple[str, int, int]:
-    """Configure the number of instances to use on each host, and also 
+    """Configure the number of instances to use on each host, and also
     the number of hosts
 
     Args:
-        poprun_config (dict): 
-        num_ipus (int): 
-    Returns 
+        poprun_config (dict):
+        num_ipus (int):
+    Returns
         bash command, number of hosts, number of instances as a tuple
     """
 
@@ -248,25 +272,34 @@ def configure_hosts(poprun_config: dict, num_ipus: int) -> Tuple[str, int, int]:
 
     # reconfigure number of instances per host before moving to the next host
     if num_instances < num_hosts:
-        bash_script = textwrap.dedent("""
+        bash_script = textwrap.dedent(
+            """
             export SLURM_NTASKS_PER_NODE=1
-        """)
+        """
+        )
     else:
         if (num_instances % num_hosts) != 0:
-            err_msg = ("Number of poprun instances must divide number of hosts. "
-                       f"Provided num_instances: {num_instances}. num_hosts: {num_hosts}.")
+            err_msg = (
+                "Number of poprun instances must divide number of hosts. "
+                f"Provided num_instances: {num_instances}. num_hosts: {num_hosts}."
+            )
             raise ValueError(err_msg)
         else:
-            bash_script = textwrap.dedent(f"""
+            bash_script = textwrap.dedent(
+                f"""
                 export SLURM_NTASKS_PER_NODE={int(num_instances / num_hosts)}
-            """)
+            """
+            )
 
     # reconfigure the host set to be used for the job
-    bash_script += textwrap.dedent(f"""
+    bash_script += textwrap.dedent(
+        f"""
         NUM_HOSTS={num_hosts}
-    """)
+    """
+    )
 
-    bash_script += textwrap.dedent("""
+    bash_script += textwrap.dedent(
+        """
         echo "[INFO] Determining restricted host set from $SLURM_JOB_NODELIST"
         BASE=$(echo $SLURM_JOB_NODELIST  | cut -d '-' -f 1,2)
         if [ "${SLURM_JOB_NODELIST/[/}" == "${SLURM_JOB_NODELIST}" ]
@@ -293,7 +326,8 @@ def configure_hosts(poprun_config: dict, num_ipus: int) -> Tuple[str, int, int]:
         echo "[INFO] Restricted host set is: $HOSTS"
 
         export SLURM_JOB_NODELIST=$HOSTS
-    """)
+    """
+    )
 
     # for multi host runs on neverland cl1:
     # 1. Poprun can deduce the subnet mask by considering the network
@@ -310,7 +344,8 @@ def configure_hosts(poprun_config: dict, num_ipus: int) -> Tuple[str, int, int]:
 
     if num_hosts > 1:
         # update host public IPs
-        bash_script += textwrap.dedent("""
+        bash_script += textwrap.dedent(
+            """
             echo "[INFO] Adding host public IPs to known hosts"
             OLDIFS=$IFS
             IFS=','
@@ -319,14 +354,15 @@ def configure_hosts(poprun_config: dict, num_ipus: int) -> Tuple[str, int, int]:
                 ssh-keyscan -H $host >> ~/.ssh/known_hosts
             done
             IFS=$OLDIFS
-        """)
+        """
+        )
     return bash_script
 
 
 def configure_ipu_partition(poprun_config: dict, num_ipus: int) -> str:
-    """Add instruction to bash job script to create a compatible partition for 
+    """Add instruction to bash job script to create a compatible partition for
     the benchmark variant. If the benchmark variant is using poprun, poprun will
-    be used to create the partition. If it is not using poprun, vipu will be used 
+    be used to create the partition. If it is not using poprun, vipu will be used
     to create the partition
 
     Args:
@@ -342,17 +378,21 @@ def configure_ipu_partition(poprun_config: dict, num_ipus: int) -> str:
 
     # IPUOF_VIPU_API_HOST & IPUOF_VIPU_API_PORT will be deduced by poprun
     # on neverland this is guaranteed to be correct
-    bash_script = textwrap.dedent("""
+    bash_script = textwrap.dedent(
+        """
         export IPUOF_VIPU_API_PARTITION_ID=p${SLURM_JOB_ID}
         export ALLOCATION=c${SLURM_JOB_ID}
 
         echo "[INFO] Configuring IPU partition and running benchmark"
-    """)
+    """
+    )
 
     if poprun_config == {}:
-        bash_script += textwrap.dedent(f"""
+        bash_script += textwrap.dedent(
+            f"""
             vipu create partition $IPUOF_VIPU_API_PARTITION_ID --allocation $ALLOCATION --size {num_ipus} --reconfigurable
-        """)
+        """
+        )
     else:
 
         num_ilds = poprun_config["num_ilds"]
@@ -365,15 +405,18 @@ def configure_ipu_partition(poprun_config: dict, num_ipus: int) -> str:
                 raise ValueError("Poprun --num-ilds option must be of integral type")
             if num_ilds > 1:
                 logger.warning(
-                    "The Slurm queue does not support augmenting the cluster specification. Forcing --num-ilds to 1.")
+                    "The Slurm queue does not support augmenting the cluster specification. Forcing --num-ilds to 1."
+                )
                 num_ilds = 1
 
         # add poprun options
         # make sure no whitespace is trailing after \\, otherwise multline commands will fail
-        bash_script += textwrap.dedent(f"""
+        bash_script += textwrap.dedent(
+            f"""
             poprun --host=$SLURM_JOB_NODELIST --num-ilds {num_ilds} --num-instances={int(poprun_config.get("num_instances", 1))} \\
                 --vipu-allocation=$ALLOCATION  --host-subnet={os.environ['SLURM_HOST_SUBNET_MASK']} \\
-                {"" + poprun_config["other_args"]} \\""")
+                {"" + poprun_config["other_args"]} \\"""
+        )
 
     return bash_script
 
@@ -397,19 +440,24 @@ def configure_datasets(cmd, poprun_config) -> str:
         return "", cmd
     else:
 
-        bash_script = textwrap.dedent("""
+        bash_script = textwrap.dedent(
+            """
             echo "[INFO] rsyncing datasets to a local destination"
-        """)
+        """
+        )
 
         # not using poprun
         if poprun_config == {}:
             rsync_cmds = "\n".join(
-                [f"mkdir -p {dest}; rsync --copy-links -au {src} {dest} " for src, dest in rsync_dirs])
+                [f"mkdir -p {dest}; rsync --copy-links -au {src} {dest} " for src, dest in rsync_dirs]
+            )
             bash_script += "\n" + rsync_cmds + "\n"
         else:
             rsync_cmds = "\n".join(
-                [f"mkdir -p $host:{dest}; rsync --copy-links -au {src} $host:{dest} &" for src, dest in rsync_dirs])
-            bash_script += textwrap.dedent(f"""
+                [f"mkdir -p $host:{dest}; rsync --copy-links -au {src} $host:{dest} &" for src, dest in rsync_dirs]
+            )
+            bash_script += textwrap.dedent(
+                f"""
                 OLDIFS=$IFS
                 IFS=','
                 for host in $SLURM_JOB_NODELIST; do
@@ -417,27 +465,30 @@ def configure_datasets(cmd, poprun_config) -> str:
                 done
                 wait
                 IFS=$OLDIF
-            """)
+            """
+            )
 
     return bash_script, cmd
 
 
-def configure_slurm_job(args: argparse.ArgumentParser,
-                        benchmark_dict: Dict,
-                        poprun_config: Dict,
-                        cmd: list,
-                        variant_name: str,
-                        variant_log_dir: str,
-                        job_wd: str,
-                        env: dict,
-                        rsync_datasets: bool = False):
+def configure_slurm_job(
+    args: argparse.ArgumentParser,
+    benchmark_dict: Dict,
+    poprun_config: Dict,
+    cmd: list,
+    variant_name: str,
+    variant_log_dir: str,
+    job_wd: str,
+    env: dict,
+    rsync_datasets: bool = False,
+):
     """Construct a bash script that will be used to submit the given benchmark variant
     in a SLURM queue. The bash script is created in a series of steps:
 
     1. Configure job working directory
     2. Configure poplar SDK and python venv to be used
     3. Configure the IPU partition to be used for the job
-    4. Add the python command to be run on the SLURM allocated node 
+    4. Add the python command to be run on the SLURM allocated node
 
     The bash script is then output to the logging directory for the given benchmark variant
 
@@ -502,8 +553,15 @@ def configure_slurm_job(args: argparse.ArgumentParser,
 
     # pass --wait to sbatch so that we can obtain the return code from the submitted job
     slurm_job_command = [
-        submission_script, "--wait", "--job-name", variant_name, "-e", stderr_log_path, "-o", stdout_log_path,
-        job_script_path
+        submission_script,
+        "--wait",
+        "--job-name",
+        variant_name,
+        "-e",
+        stderr_log_path,
+        "-o",
+        stdout_log_path,
+        job_script_path,
     ]
 
     env = configure_environment_variables(env)
@@ -514,38 +572,41 @@ def configure_slurm_job(args: argparse.ArgumentParser,
         "stderr_log_path": stderr_log_path,
         "job_name": variant_name,
         "timeout": args.timeout,
-        "env": env
+        "env": env,
     }
 
 
 def kill_slurm_job(proc: subprocess.Popen, job_name: str) -> None:
-    """Clean up if the job launching subprocess exits uncleanly 
+    """Clean up if the job launching subprocess exits uncleanly
     or the user issues an interrupt
 
-    Args: 
+    Args:
         proc (python subprocess): job submission process
         job_name (str): name of the job
     """
     proc.kill()
     logger.warning("SLURM job launching process exited abnormally." f" Killing job with job name: {job_name}")
-    proc = subprocess.run(["scancel", "--jobname", job_name],
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE,
-                          env=os.environ)
+    proc = subprocess.run(
+        ["scancel", "--jobname", job_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ
+    )
     if proc.returncode != 0:
-        raise SlurmBenchmarkError(f"Unable to kill SLURM job: {job_name}"
-                                  f"Exit code: {proc.returncode}."
-                                  f"Reported error: {proc.stderr.decode()}.")
+        raise SlurmBenchmarkError(
+            f"Unable to kill SLURM job: {job_name}"
+            f"Exit code: {proc.returncode}."
+            f"Reported error: {proc.stderr.decode()}."
+        )
 
 
-def run_and_monitor_progress_on_slurm(cmd: list,
-                                      job_name: str,
-                                      stdout_log_path: str,
-                                      stderr_log_path: str,
-                                      listener: TextIOWrapper,
-                                      env: dict,
-                                      timeout: int = None,
-                                      **kwargs) -> Tuple[str, str, int]:
+def run_and_monitor_progress_on_slurm(
+    cmd: list,
+    job_name: str,
+    stdout_log_path: str,
+    stderr_log_path: str,
+    listener: TextIOWrapper,
+    env: dict,
+    timeout: int = None,
+    **kwargs,
+) -> Tuple[str, str, int]:
     """
     Run the benchmark in the SLURM queue and monitor progress.
 
@@ -622,12 +683,12 @@ def run_and_monitor_progress_on_slurm(cmd: list,
         while proc.poll() is None:
 
             stdout_data = stdout.read().decode()
-            if stdout_data != '':
+            if stdout_data != "":
                 outs[0].append(stdout_data)
                 listener.write(stdout_data)
 
             stderr_data = stderr.read().decode()
-            if stderr_data != '':
+            if stderr_data != "":
                 outs[1].append(stderr_data)
                 listener.write(stderr_data)
 

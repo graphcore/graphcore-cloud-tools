@@ -10,6 +10,7 @@ try:
     from nbformat import NotebookNode
 except (ImportError, ModuleNotFoundError) as error:
     from . import _incorrect_requirement_variant_error
+
     raise _incorrect_requirement_variant_error from error
 
 DEFAULT_TIMEOUT = 600
@@ -55,8 +56,12 @@ class OutputExporter(Exporter):
         #     }, ...]}
         # Hence the following list comprehension:
         cell_outputs = [
-            output.get("text", "") + os.linesep for cell in notebook.cells if cell.cell_type == "code"
-            for output in cell.outputs if output if output.get("output_type") == "stream"
+            output.get("text", "") + os.linesep
+            for cell in notebook.cells
+            if cell.cell_type == "code"
+            for output in cell.outputs
+            if output
+            if output.get("output_type") == "stream"
         ]
 
         outputs = os.linesep.join(cell_outputs)

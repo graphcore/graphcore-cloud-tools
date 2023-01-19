@@ -30,7 +30,7 @@ def mocked_args():
 def test_git_commit_hash_in_repo():
     os.chdir(pathlib.Path(__file__).parent)
     hash = environment_utils.get_git_commit_hash()
-    assert (is_sha_1(hash))
+    assert is_sha_1(hash)
 
 
 def test_git_commit_hash_out_of_repo():

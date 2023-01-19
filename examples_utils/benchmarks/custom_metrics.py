@@ -53,8 +53,7 @@ def import_metrics_hooks_files(hook_files: List[Union[str, pathlib.Path]]):
 
 
 def register_custom_metric(name: str, function: MetricFunction):
-    """ Register a new metric function to be run during processing of the benchmark.
-    """
+    """Register a new metric function to be run during processing of the benchmark."""
     if name in REGISTERED_HOOKS:
         logger.warning(f"Metric '{name}' multiply defined, only the last registered implementation will be executed.")
     REGISTERED_HOOKS[name] = function
@@ -62,12 +61,11 @@ def register_custom_metric(name: str, function: MetricFunction):
 
 
 def process_registered_metrics(results: dict, stdout: str, stderr: str, exitcode: int):
-    """ Process the metrics registered with ``register_custom_metric``
-    """
+    """Process the metrics registered with ``register_custom_metric``"""
     for metric_name, metric_function in REGISTERED_HOOKS.items():
         try:
             results[metric_name] = metric_function(stdout, stderr, exitcode)
         except Exception as error:
-            err = (f"Metric '{metric_name}' failed during execution with: {type(error).__name__} {error}")
+            err = f"Metric '{metric_name}' failed during execution with: {type(error).__name__} {error}"
             logger.error(err)
     return results

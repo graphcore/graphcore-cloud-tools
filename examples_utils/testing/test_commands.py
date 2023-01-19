@@ -15,11 +15,11 @@ class CalledProcessError(subprocess.CalledProcessError):
 
 
 def run_command_fail_explicitly(
-        command: Union[str, List[str]],
-        cwd: str = ".",
-        *,
-        suppress_warnings: bool = False,
-        **kwargs,
+    command: Union[str, List[str]],
+    cwd: str = ".",
+    *,
+    suppress_warnings: bool = False,
+    **kwargs,
 ) -> str:
     """Runs a command returning the output or failing with useful information
 

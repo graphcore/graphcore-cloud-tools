@@ -81,12 +81,14 @@ def create_variants(benchmark_name: str, benchmark_dict: dict) -> list:
                             variants.append(x)
 
         else:
-            err = (f"In {benchmark_name} in {benchmark_dict['benchmark_path']},"
-                   " the 'parameters' are defined in neither a list style or "
-                   "a dict style. They must be defined as one of the two "
-                   "(using a comma seperated list, optionally surrounded by "
-                   "square brackets, or as a dict, surrounded by curly "
-                   "brackets).")
+            err = (
+                f"In {benchmark_name} in {benchmark_dict['benchmark_path']},"
+                " the 'parameters' are defined in neither a list style or "
+                "a dict style. They must be defined as one of the two "
+                "(using a comma seperated list, optionally surrounded by "
+                "square brackets, or as a dict, surrounded by curly "
+                "brackets)."
+            )
             logger.error(err)
             raise ValueError(err)
 
@@ -121,8 +123,7 @@ def get_benchmark_variants(benchmark_name: str, benchmark_dict: dict) -> list:
 
 
 def remove_wandb_args(cmd: str) -> str:
-    """Remove all wandb args and their values from command strings.
-    """
+    """Remove all wandb args and their values from command strings."""
 
     new_arg_list = []
     arg_list = shlex.split(cmd)
@@ -151,9 +152,9 @@ def remove_wandb_args(cmd: str) -> str:
 
 
 def formulate_benchmark_command(
-        benchmark_dict: dict,
-        variant_dict: dict,
-        args: Namespace,
+    benchmark_dict: dict,
+    variant_dict: dict,
+    args: Namespace,
 ) -> str:
     """Create the actual command to be run from an unformatted string.
 
@@ -191,11 +192,13 @@ def formulate_benchmark_command(
         cmd = cmd.replace(called_file, resolved_file)
 
     if not (args.allow_wandb or benchmark_dict.get("allow_wandb", False)) and "--wandb" in cmd:
-        logger.info("'--allow-wandb' was not passed or set in the benchmark entry,"
-                    " however '--wandb' is an "
-                    "argument provided to the benchmark. The default value of "
-                    "'--allow-wandb' (False) is overriding, purging '--wandb' "
-                    "and all args containing 'wandb' from command.")
+        logger.info(
+            "'--allow-wandb' was not passed or set in the benchmark entry,"
+            " however '--wandb' is an "
+            "argument provided to the benchmark. The default value of "
+            "'--allow-wandb' (False) is overriding, purging '--wandb' "
+            "and all args containing 'wandb' from command."
+        )
 
         cmd = remove_wandb_args(cmd)
 
@@ -205,9 +208,11 @@ def formulate_benchmark_command(
 
         # Dont import wandb if compile only mode
         if "--wandb" in cmd:
-            logger.info("--compile-only was passed, and wandb is not used for "
-                        "compile only runs, purging '--wandb' and all args "
-                        "containing 'wandb' in their names from command.")
+            logger.info(
+                "--compile-only was passed, and wandb is not used for "
+                "compile only runs, purging '--wandb' and all args "
+                "containing 'wandb' in their names from command."
+            )
             cmd = remove_wandb_args(cmd)
 
         # Remove vipu settings that prevent from running in compile-only mode
@@ -226,11 +231,13 @@ def formulate_benchmark_command(
 def get_num_ipus(benchmark_name: str) -> int:
     num_ipus = re.findall(pattern="pod(\d+)", string=benchmark_name)
     if len(num_ipus) < 0:
-        err = (f"Processing benchmark variant: {benchmark_name}."
-               " Malformed name. Benchmark must specify the number of IPUs "
-               "to be used in the form "
-               "[alphanumeric chars and underscore]+pod(\d+)"
-               "[alphanumeric_chars and underscore]+")
+        err = (
+            f"Processing benchmark variant: {benchmark_name}."
+            " Malformed name. Benchmark must specify the number of IPUs "
+            "to be used in the form "
+            "[alphanumeric chars and underscore]+pod(\d+)"
+            "[alphanumeric_chars and underscore]+"
+        )
         logger.error(err)
         raise ValueError(err)
     else:
@@ -247,16 +254,16 @@ def query_option_in_cmd(cmd: list, option: list):
 
 
 def get_poprun_config(args, cmd) -> Dict:
-    """Get a poprun configuration dict storing key,value pairs of poprun options 
-    and supplied arguments. We store only a subset of options that are going 
+    """Get a poprun configuration dict storing key,value pairs of poprun options
+    and supplied arguments. We store only a subset of options that are going
     to be needed in order to ensure that the job submission environment is correct:
 
-    Args: 
+    Args:
        args (argparse.Namespace): Arguments passed to run the benchmarks
-            with        
+            with
         cmd: (list): benchmark variant command
     Return:
-        poprun configuration (Dict): key value pairs of poprun options and arguments    
+        poprun configuration (Dict): key value pairs of poprun options and arguments
     """
     poprun_config = {}
 
@@ -271,10 +278,21 @@ def get_poprun_config(args, cmd) -> Dict:
 
     parser = ArgumentParser()
 
-    configuration_options = [["-H", "--host"], ["--num-instances"], ["--vipu-server-host"], ["--vipu-server-port"],
-                             ["--vipu-partition"], ["--num-ilds"], ["--vipu-cluster", "--vipu-allocation"],
-                             ["--synchronise-python-venv"], ["--synchronise-poplar-sdk"], ["--distribute-ssh-key"],
-                             ["--mpi-global-args"], ["--mpi-local-args"], ["--host-subnet"]]
+    configuration_options = [
+        ["-H", "--host"],
+        ["--num-instances"],
+        ["--vipu-server-host"],
+        ["--vipu-server-port"],
+        ["--vipu-partition"],
+        ["--num-ilds"],
+        ["--vipu-cluster", "--vipu-allocation"],
+        ["--synchronise-python-venv"],
+        ["--synchronise-poplar-sdk"],
+        ["--distribute-ssh-key"],
+        ["--mpi-global-args"],
+        ["--mpi-local-args"],
+        ["--host-subnet"],
+    ]
 
     for opt in configuration_options:
         if "--host" in opt:
@@ -282,7 +300,7 @@ def get_poprun_config(args, cmd) -> Dict:
         else:
             parser.add_argument(*opt, type=str, default=None)
 
-    parse_range = cmd[poprun_index + 1:python_index]
+    parse_range = cmd[poprun_index + 1 : python_index]
     known_options, other_options = parser.parse_known_args(parse_range)
     poprun_config = vars(known_options)
     poprun_config["other_args"] = shlex.join(other_options)
@@ -311,9 +329,11 @@ def get_local_poprun_hosts(poprun_config: Dict) -> Tuple[list, int]:
     # If "--host" is not defined, then instances must be running on one host
     poprun_hostnames = poprun_config["host"]
     if poprun_hostnames is None:
-        logger.info("'--host' argument not provided, assuming all poprun "
-                    "instances defined in this benchmark will run on a single host "
-                    "only")
+        logger.info(
+            "'--host' argument not provided, assuming all poprun "
+            "instances defined in this benchmark will run on a single host "
+            "only"
+        )
         return []
 
     num_hosts = len(poprun_hostnames)
@@ -321,9 +341,11 @@ def get_local_poprun_hosts(poprun_config: Dict) -> Tuple[list, int]:
     if num_hosts > 1:
         logger.info("Benchmark is running multiple instances over multiple hosts, preparing all hosts.")
     else:
-        logger.warn("Only one value has been passed to the '--host' argument, "
-                    "assuming all instances defined for this benchmark will "
-                    "run on this host only")
+        logger.warn(
+            "Only one value has been passed to the '--host' argument, "
+            "assuming all instances defined for this benchmark will "
+            "run on this host only"
+        )
 
     # Find all forms of ID for this local machine
     possible_hostnames = []
@@ -346,13 +368,15 @@ def get_local_poprun_hosts(poprun_config: Dict) -> Tuple[list, int]:
             poprun_hostnames.remove(hostname)
 
     if len(poprun_hostnames) == num_hosts:
-        logger.warn("This machines hostname/IP could not be found in the "
-                    "values provided to the '--host' argument for poprun. "
-                    "Assuming that the first value in the list provided is "
-                    "this machine's hostname, and skipping interacting with the "
-                    "filesystem on it. If this is not the case, please use "
-                    "either the host name as seen in the $HOSTNAME environment "
-                    "variable, or using internal/external IP addresses.")
+        logger.warn(
+            "This machines hostname/IP could not be found in the "
+            "values provided to the '--host' argument for poprun. "
+            "Assuming that the first value in the list provided is "
+            "this machine's hostname, and skipping interacting with the "
+            "filesystem on it. If this is not the case, please use "
+            "either the host name as seen in the $HOSTNAME environment "
+            "variable, or using internal/external IP addresses."
+        )
         poprun_hostnames = poprun_hostnames[1:]
 
     return poprun_hostnames

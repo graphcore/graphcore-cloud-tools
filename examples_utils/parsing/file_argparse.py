@@ -8,14 +8,14 @@ from pathlib import Path
 
 def parse_yaml_config(args, parser):
     """Overwritting the command and default arguments with values
-    specified in the configuration file. This method allows to 
+    specified in the configuration file. This method allows to
     verify the correctness of the file arguments based on arguments
     defined in the parser.
 
     Args:
         args (object): Previously parsed arguments that will be updated.
-        parser (object): The parser used to generate "args". The parser 
-                         is applied to parse the file and overwrite the 
+        parser (object): The parser used to generate "args". The parser
+                         is applied to parse the file and overwrite the
                          arguments in "args".
 
     Returns:
@@ -27,22 +27,26 @@ def parse_yaml_config(args, parser):
         with config_filename.open() as config_file:
             loader = yaml.SafeLoader
             loader.add_implicit_resolver(
-                u'tag:yaml.org,2002:float',
+                "tag:yaml.org,2002:float",
                 re.compile(
-                    u'''^(?:
+                    """^(?:
                 [-+]?(?:[0-9][0-9_]*)\\.[0-9_]*(?:[eE][-+]?[0-9]+)?
                 |[-+]?(?:[0-9][0-9_]*)(?:[eE][-+]?[0-9]+)
                 |\\.[0-9_]+(?:[eE][-+][0-9]+)?
                 |[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\\.[0-9_]*
                 |[-+]?\\.(?:inf|Inf|INF)
-                |\\.(?:nan|NaN|NAN))$''', re.X), list(u'-+0123456789.'))
+                |\\.(?:nan|NaN|NAN))$""",
+                    re.X,
+                ),
+                list("-+0123456789."),
+            )
             configs = yaml.load(config_file, Loader=loader)
         return configs
 
     def _yaml_to_string_list(config: dict) -> List[str]:
         s_list = []
         for arg, value in config.items():
-            s_list += [f'--{arg}']
+            s_list += [f"--{arg}"]
             if type(value) == list:
                 s_list += [str(element) for element in value]
             else:
@@ -54,8 +58,9 @@ def parse_yaml_config(args, parser):
         # and update command line arguments
         configs = _read_yaml_config(args.config_path)
         if args.config not in configs:
-            raise ValueError(f'unknown config {args.config} in config file. '
-                             f'Available configs are {list(configs.keys())}.')
+            raise ValueError(
+                f"unknown config {args.config} in config file. " f"Available configs are {list(configs.keys())}."
+            )
         string_list_config = _yaml_to_string_list(configs[args.config])
         config_args = parser.parse_args(string_list_config)
         parser.set_defaults(**vars(config_args))

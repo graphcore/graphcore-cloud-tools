@@ -14,10 +14,8 @@ logger = logging.getLogger(__name__)
 date_regex = r"(\d{4}\-\d{2}\-\d{2}[T ?]\d{2}:\d{2}:\d{2}.\d{6})"
 compile_time_lookup = [
     {
-        "name":
-        "Pre poplar compilation time",
-        "ref":
-        "pre_poplar_compilation_time",
+        "name": "Pre poplar compilation time",
+        "ref": "pre_poplar_compilation_time",
         "start_regex": [
             re.compile(date_regex + r".* Poplar version:"),
             re.compile(date_regex + r".* Popart version:"),
@@ -28,10 +26,8 @@ compile_time_lookup = [
         ],
     },
     {
-        "name":
-        "Graph construction time",
-        "ref":
-        "graph_construction_time",
+        "name": "Graph construction time",
+        "ref": "graph_construction_time",
         "start_regex": [
             re.compile(date_regex + r".* Begin Poplar graph construction"),
             re.compile(date_regex + r".* Poplar graph initialised"),
@@ -42,10 +38,8 @@ compile_time_lookup = [
         ],
     },
     {
-        "name":
-        "Poplar compilation time",
-        "ref":
-        "poplar_compilation_time",
+        "name": "Poplar compilation time",
+        "ref": "poplar_compilation_time",
         "start_regex": [
             re.compile(date_regex + r".* Begin compiling Poplar engine"),
             re.compile(date_regex + r".* Starting compilation"),
@@ -79,7 +73,7 @@ def get_instance_compile_times(compile_log: str) -> list:
 
             # Get compilation start and end times from line
             start_match = get_match_of_list(comp_time["start_regex"], line)
-            end_match = (get_match_of_list(comp_time["end_regex"], line) if not start_match else None)
+            end_match = get_match_of_list(comp_time["end_regex"], line) if not start_match else None
 
             # Create a structure to store compile start/end times from multiple
             # instances
@@ -254,7 +248,7 @@ def extract_metrics(extraction_config: dict, log: str, exitcode: int, num_replic
                 else:
                     all_results.sort()
 
-                all_results = all_results[metric_spec["skip"]:]
+                all_results = all_results[metric_spec["skip"] :]
                 result = sum(all_results) / len(all_results)
 
             elif metric_spec["reduction_type"] == "final":
@@ -304,10 +298,10 @@ def flatten_results(results: dict, derivation_config: dict) -> dict:
 
 
 def derive_metrics(
-        derivation_config: dict,
-        benchmark_config: dict,
-        results: dict,
-        exitcode: int,
+    derivation_config: dict,
+    benchmark_config: dict,
+    results: dict,
+    exitcode: int,
 ) -> Tuple[dict, bool]:
     """Derive metrics from other metrics using specified expressions.
 
@@ -376,8 +370,9 @@ def get_match_of_list(regex_list: list, line: str) -> str:
     return match
 
 
-def additional_metrics(results: dict, test_duration: float, cmd: str, exitcode: int, env: dict,
-                       git_commit_hash: str) -> dict:
+def additional_metrics(
+    results: dict, test_duration: float, cmd: str, exitcode: int, env: dict, git_commit_hash: str
+) -> dict:
     results["test_duration"] = {"test_duration": test_duration}
     results["cmd"] = {"cmd": cmd}
     results["result"] = {"result": str(bool(not exitcode))}

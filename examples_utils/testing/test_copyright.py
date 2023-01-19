@@ -10,15 +10,15 @@ import configparser
 import json
 import logging
 
-C_FILE_EXTS = ['c', 'cpp', 'C', 'cxx', 'c++', 'h', 'hpp']
+C_FILE_EXTS = ["c", "cpp", "C", "cxx", "c++", "h", "hpp"]
 
-EXT_TO_LANGUAGE = {'py': 'python', **{ext: 'c' for ext in C_FILE_EXTS}}
+EXT_TO_LANGUAGE = {"py": "python", **{ext: "c" for ext in C_FILE_EXTS}}
 
 
 def check_file(path, amend):
     logging.debug(f"Checking: {path}")
 
-    ext = path.split('.')[-1]
+    ext = path.split(".")[-1]
     language = EXT_TO_LANGUAGE[ext]
 
     if os.stat(path).st_size == 0:
@@ -28,12 +28,12 @@ def check_file(path, amend):
     comment = "#" if language == "python" else "//"
     found_copyright = False
     first_line_index = 0
-    line = '\n'
+    line = "\n"
     with open(path, "r") as f:
         regexp = r"{} Copyright \(c\) \d+ Graphcore Ltd. All (r|R)ights (r|R)eserved.".format(comment)
 
         # Skip blank, comments and shebang
-        while (line == '\n' or line.startswith(comment) or line.startswith("#!")) and not re.match(regexp, line):
+        while (line == "\n" or line.startswith(comment) or line.startswith("#!")) and not re.match(regexp, line):
             if line.startswith("#!"):
                 first_line_index += 1
             line = f.readline()
@@ -46,7 +46,7 @@ def check_file(path, amend):
         if amend:
             now = datetime.datetime.now()
             year = now.year
-            copyright_msg = '{} Copyright (c) {} Graphcore Ltd. All rights reserved.'.format(comment, year)
+            copyright_msg = "{} Copyright (c) {} Graphcore Ltd. All rights reserved.".format(comment, year)
             index = 0
             for line in fileinput.FileInput(path, inplace=1):
                 if index == first_line_index:
@@ -64,8 +64,8 @@ def check_file(path, amend):
 def read_git_submodule_paths():
     try:
         config = configparser.ConfigParser()
-        config.read('.gitmodules')
-        module_paths = [config[k]['path'] for k in config.sections()]
+        config.read(".gitmodules")
+        module_paths = [config[k]["path"] for k in config.sections()]
         if len(module_paths):
             print(f"Git submodule paths: {module_paths}")
         return module_paths
@@ -93,7 +93,7 @@ def test_copyrights(root_path, amend=False, exclude_josn=None):
         if exclude_josn is not None:
             with open(exclude_josn) as f:
                 exclude = json.load(f)
-            exclude = exclude['exclude']
+            exclude = exclude["exclude"]
         else:
             exclude = []
         exclude = [os.path.join(root_path, p) for p in exclude]
@@ -112,10 +112,10 @@ def test_copyrights(root_path, amend=False, exclude_josn=None):
 
         # CMake builds generate .c and .cpp files
         # so we need to exclude all those:
-        files = [file for file in files if '/CMakeFiles/' not in file]
+        files = [file for file in files if "/CMakeFiles/" not in file]
 
         # Only include files with lang ext
-        files = [file for file in files if file.split('.')[-1] in EXT_TO_LANGUAGE]
+        files = [file for file in files if file.split(".")[-1] in EXT_TO_LANGUAGE]
 
         logging.debug(f"Files to check: {files}")
         logging.info(f"Number of files to check: {len(files)}")
@@ -137,21 +137,26 @@ def test_copyrights(root_path, amend=False, exclude_josn=None):
 def copyright_argparser(parser: argparse.ArgumentParser):
     """Add load lib build CLI commands to argparse parser"""
     parser.add_argument(
-        'path',
-        nargs='?',
-        default='.',
-        help='Directory to start searching for files. '
-        'Defaults to current working directory. You can also specify a file if you would like to only check that file.')
+        "path",
+        nargs="?",
+        default=".",
+        help="Directory to start searching for files. "
+        "Defaults to current working directory. You can also specify a file if you would like to only check that file.",
+    )
     parser.add_argument("--amend", action="store_true", help="Amend copyright headers in files.")
-    parser.add_argument("--exclude_json",
-                        default=None,
-                        help="Provide a path to a JSON file which include files to exclude. "
-                        "The paths should be relative to the current working directory.")
-    parser.add_argument("--log_level",
-                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-                        type=str,
-                        default='WARNING',
-                        help=("Loging level for the app. "))
+    parser.add_argument(
+        "--exclude_json",
+        default=None,
+        help="Provide a path to a JSON file which include files to exclude. "
+        "The paths should be relative to the current working directory.",
+    )
+    parser.add_argument(
+        "--log_level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        type=str,
+        default="WARNING",
+        help=("Loging level for the app. "),
+    )
 
 
 if __name__ == "__main__":
@@ -159,9 +164,9 @@ if __name__ == "__main__":
     copyright_argparser(parser)
     opts = parser.parse_args()
 
-    logging.basicConfig(level=opts.log_level,
-                        format='%(asctime)s %(levelname)s: %(message)s',
-                        datefmt="%Y-%m-%d %H:%M:%S")
+    logging.basicConfig(
+        level=opts.log_level, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
     logging.info(f"Staring. Process id: {os.getpid()}")
 
     try:

@@ -15,6 +15,7 @@ from time import time
 WANDB_AVAILABLE = True
 try:
     import wandb
+
     # avoid namespace packages ref: https://peps.python.org/pep-0420/#specification
     getattr(wandb, "init")
 except:
@@ -102,7 +103,7 @@ def get_latest_checkpoint_path(checkpoint_root_dir: Path, variant_cmd: str) -> P
     for arg in cmd_args:
         if "checkpoint-output-dir" in arg:
             checkpoint_dir = arg.replace("=", " ").split(" ")[1]
-            checkpoint_dir = checkpoint_dir.replace("\"", "").replace("'", "")
+            checkpoint_dir = checkpoint_dir.replace('"', "").replace("'", "")
             break
 
     latest_checkpoint_path = None
@@ -111,7 +112,7 @@ def get_latest_checkpoint_path(checkpoint_root_dir: Path, variant_cmd: str) -> P
         checkpoint_dir = checkpoint_root_dir.joinpath(checkpoint_dir).resolve()
 
         # Find all directories in checkpoint root dir
-        list_of_dirs = [x for x in checkpoint_dir.glob('**/*') if x.is_dir()]
+        list_of_dirs = [x for x in checkpoint_dir.glob("**/*") if x.is_dir()]
 
         # Sort list of files based on last modification time and take latest
         time_sorted_dirs = sorted(list_of_dirs, key=os.path.getmtime, reverse=True)
@@ -186,8 +187,14 @@ def save_results(log_dir: str, additional_metrics: bool, results: dict, extra_cs
     logger.info(f"Results saved to {str(csv_filepath)}")
 
 
-def upload_checkpoints(upload_targets: list, checkpoint_path: Path, benchmark_path: str, checkpoint_dir_depth: int,
-                       run_name: str, stderr: str):
+def upload_checkpoints(
+    upload_targets: list,
+    checkpoint_path: Path,
+    benchmark_path: str,
+    checkpoint_dir_depth: int,
+    run_name: str,
+    stderr: str,
+):
     """Upload checkpoints from model run to
 
     Args:
@@ -205,8 +212,9 @@ def upload_checkpoints(upload_targets: list, checkpoint_path: Path, benchmark_pa
         upload_confirmed = input("Please enter either y (yes) or n (no): ")
 
     if upload_confirmed != "y":
-        logger.warn(f"Checkpoint uploading was refused by user input, skipping "
-                    f"uploading checkpoints at {checkpoint_path}")
+        logger.warn(
+            f"Checkpoint uploading was refused by user input, skipping " f"uploading checkpoints at {checkpoint_path}"
+        )
         return
 
     checkpoint_path = str(checkpoint_path)
@@ -260,23 +268,25 @@ def upload_checkpoints(upload_targets: list, checkpoint_path: Path, benchmark_pa
             logger.warn(e)
 
         if "AccessDenied" in stdout + stderr:
-            msg = ("It appears that awscli is denied access when uploading. "
-                   "If you have MFA (Multi-factor authentication) enabled for "
-                   "your AWS account, then it will require setting up prior "
-                   "to attempting any uploads. Please repeat this benchmarking "
-                   "run after configuring aws-mfa "
-                   "(https://github.com/broamski/aws-mfa) in your environment: "
-                   "\n1 - `pip3 install aws-mfa`"
-                   "\n2 - In your aws credentials, append '-long-term' to the "
-                   "profile you want to use (e.g. [default-long-term]) and add "
-                   "a new field called aws_mfa_device, the value of which you "
-                   "can get from your AWS account > security credentials (e.g "
-                   "aws_mfa_device "
-                   "= arn:aws:iam::<account number>:mfa/<username>) "
-                   "\n3 - `aws-mfa` "
-                   "\n4 - Enter the MFA code from your "
-                   "authenticator app you use when logging into AWS in the "
-                   "web browser etc.")
+            msg = (
+                "It appears that awscli is denied access when uploading. "
+                "If you have MFA (Multi-factor authentication) enabled for "
+                "your AWS account, then it will require setting up prior "
+                "to attempting any uploads. Please repeat this benchmarking "
+                "run after configuring aws-mfa "
+                "(https://github.com/broamski/aws-mfa) in your environment: "
+                "\n1 - `pip3 install aws-mfa`"
+                "\n2 - In your aws credentials, append '-long-term' to the "
+                "profile you want to use (e.g. [default-long-term]) and add "
+                "a new field called aws_mfa_device, the value of which you "
+                "can get from your AWS account > security credentials (e.g "
+                "aws_mfa_device "
+                "= arn:aws:iam::<account number>:mfa/<username>) "
+                "\n3 - `aws-mfa` "
+                "\n4 - Enter the MFA code from your "
+                "authenticator app you use when logging into AWS in the "
+                "web browser etc."
+            )
             logger.warn(msg)
 
 

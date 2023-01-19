@@ -10,13 +10,21 @@ from pathlib import Path
 from io import TextIOWrapper
 from contextlib import contextmanager
 
-from .run_benchmarks import run_and_monitor_progress, BenchmarkDict, parse_benchmark_specs, run_benchmarks_from_spec, preprocess_args, benchmarks_parser
+from .run_benchmarks import (
+    run_and_monitor_progress,
+    BenchmarkDict,
+    parse_benchmark_specs,
+    run_benchmarks_from_spec,
+    preprocess_args,
+    benchmarks_parser,
+)
 from .environment_utils import enter_benchmark_dir
 
 try:
     import git
 except (ImportError, ModuleNotFoundError) as error:
     from . import _incorrect_requirement_variant_error
+
     raise _incorrect_requirement_variant_error from error
 
 logger = logging.getLogger(__name__)
@@ -49,14 +57,17 @@ class Repository(NamedTuple):
                     f"{repo_folder} is not a git repository. If this folder"
                     "was cloned make sure the clone was successful, or if it is meant to be"
                     "a local repository make sure to run `git init` in the folder before "
-                    "calling `prepare` on that path.") from error
+                    "calling `prepare` on that path."
+                ) from error
         # if a ref is specified, try to fetch it then try to check it out
         if repo.remotes and self.ref:
             try:
                 repo.git.fetch()
             except git.GitCommandError as error:
-                logger.warn(f"Failed to fetch the repository {self.origin} in folder"
-                            f" {repo_folder}. Trying to fetch raised: {error}")
+                logger.warn(
+                    f"Failed to fetch the repository {self.origin} in folder"
+                    f" {repo_folder}. Trying to fetch raised: {error}"
+                )
         if self.ref:
             repo.git.checkout(self.ref)
             if not repo.head.is_detached:
@@ -76,7 +87,7 @@ def install_patched_requirements(requirements_file: Union[str, Path], listener: 
     requirements_file = Path(requirements_file)
     logger.info(f"Install python requirements")
     if not requirements_file.exists():
-        err = (f"Invalid python requirements where specified at {requirements_file.resolve().absolute()} in folder")
+        err = f"Invalid python requirements where specified at {requirements_file.resolve().absolute()} in folder"
         logger.error(err)
         raise FileNotFoundError(err)
     # Strip examples-utils requirement as it can break the installation
@@ -85,7 +96,7 @@ def install_patched_requirements(requirements_file: Union[str, Path], listener: 
     cmd = [sys.executable, "-m", "pip", "install", "-r", str(requirements_file)]
     out, err, exit_code, _ = run_and_monitor_progress(cmd, listener, monitor_ipus=False)
     if exit_code:
-        err = (f"Installation of pip packages in file {requirements_file} failed with stderr: {err}.")
+        err = f"Installation of pip packages in file {requirements_file} failed with stderr: {err}."
         logger.error(err)
         raise subprocess.CalledProcessError(exit_code, cmd, out, err)
     return original_requirements
@@ -97,7 +108,7 @@ def install_apt_packages(requirements_file_or_list: Union[str, Path, List[str]],
     if not isinstance(requirements_file_or_list, list):
         requirements_file = Path(requirements_file_or_list)
         if not requirements_file.exists():
-            err = (f"Invalid apt requirements where specified at {requirements_file.resolve().absolute()} in folder")
+            err = f"Invalid apt requirements where specified at {requirements_file.resolve().absolute()} in folder"
             logger.error(err)
             raise FileNotFoundError(err)
         requirements_list: List[str] = requirements_file.read_text().splitlines()
@@ -110,7 +121,7 @@ def install_apt_packages(requirements_file_or_list: Union[str, Path, List[str]],
     ]:
         out, err, exit_code, _ = run_and_monitor_progress(cmd, listener, monitor_ipus=False)
         if exit_code:
-            err = (f"System packages installation failed with stderr: {err}.")
+            err = f"System packages installation failed with stderr: {err}."
             logger.error(err)
             raise subprocess.CalledProcessError(exit_code, cmd, out, err)
 
@@ -186,7 +197,6 @@ def assess_platform(args: argparse.Namespace):
 
 def platform_parser(parser: argparse.ArgumentParser):
     benchmarks_parser(parser)
-    parser.add_argument("--cloning-directory",
-                        type=str,
-                        default=None,
-                        help="Directory in which repositories get cloned")
+    parser.add_argument(
+        "--cloning-directory", type=str, default=None, help="Directory in which repositories get cloned"
+    )

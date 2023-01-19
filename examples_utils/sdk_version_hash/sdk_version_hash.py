@@ -3,7 +3,7 @@
 import cppimport.import_hook
 from . import sdk_version_hash_lib
 
-__all__ = ['sdk_version_hash']
+__all__ = ["sdk_version_hash"]
 
 
 def sdk_version_hash() -> str:

@@ -77,17 +77,25 @@ def test_end_to_end_custom_metric(tmp_path: Path, metrics_file: Path):
     python_script = tmp_path / "script.py"
     python_script.write_text(r"print('Hello\n big \nworld!')")
     yaml_file = tmp_path / "sample.yaml"
-    yaml_file.write_text(f"""
+    yaml_file.write_text(
+        f"""
 test_custom_metric:
     generated: true
     cmd: python3 {python_script}
-    """)
+    """
+    )
     out = test_commands.run_command_fail_explicitly(
         [
-            sys.executable, "-m", "examples_utils", "benchmark", "--spec",
-            str(yaml_file), "--custom-metrics-files",
-            str(metrics_file), "--log-dir",
-            str(log_dir)
+            sys.executable,
+            "-m",
+            "examples_utils",
+            "benchmark",
+            "--spec",
+            str(yaml_file),
+            "--custom-metrics-files",
+            str(metrics_file),
+            "--log-dir",
+            str(log_dir),
         ],
         ".",
     )

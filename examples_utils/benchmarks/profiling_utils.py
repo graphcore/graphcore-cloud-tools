@@ -1,6 +1,7 @@
 # Copyright (c) 2022 Graphcore Ltd. All rights reserved.
 import json
-#import reptil
+
+# import reptil
 import logging
 from pathlib import Path
 
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def add_profiling_vars(current_env: dict, benchmark_name: str, app_dir: str) -> dict:
     """Enable profiling for this benchmarking run.
-    
+
     Args:
         current_env (dict): Current environment variables state
         benchmark_name (str): Name of the benchmark being run
@@ -19,7 +20,7 @@ def add_profiling_vars(current_env: dict, benchmark_name: str, app_dir: str) -> 
     Returns:
         current_env (dict): Updated environment variables state, including
             POPLAR_ENGINE_OPTIONS
-    
+
     """
 
     report_dir = Path(app_dir).joinpath(benchmark_name + "_profile").resolve()
