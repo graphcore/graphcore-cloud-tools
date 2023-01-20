@@ -42,6 +42,7 @@ jobs:
             ```
             pip3 install pre-commit
             pre-commit install
+            pre-commit clean
             ```
             Pre-commit will check and make changes to files when you run `git commit`. If pre-commit makes changes and fails you will need to add those changes by running `git add` and `git commit`.
 
