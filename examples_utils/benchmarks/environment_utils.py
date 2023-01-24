@@ -39,7 +39,7 @@ POPRUN_VARS = {
         "possible. e.g. 10.1.3.101,10.1.3.102,... or lr17-1,lr17-2,..."
     ),
     "IPUOF_VIPU_API_PARTITION_ID": ("Name of the Virtual IPU partition. Can be found with 'vipu list " "partitions'."),
-    "CLUSTER": ("Name of the Virtual IPU cluster. Can be found with 'vipu list " "partition'."),
+    "VIPU_ALLOCATION_ID": ("Name of the Virtual IPU allocation. Can be found with 'vipu list " "partition'."),
     "TCP_IF_INCLUDE": ("The range of network interfaces available to use for poprun to " "communicate between hosts."),
     "VIPU_CLI_API_HOST": ("The IP address/name of the HOST where the virtual IPU server is " "running."),
 }
