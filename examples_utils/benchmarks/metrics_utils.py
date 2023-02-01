@@ -203,13 +203,16 @@ def set_config_defaults(data_extraction_dict: dict) -> dict:
     return data_extraction_dict
 
 
-def extract_metrics(extraction_config: dict, log: str, exitcode: int, num_replicas: int) -> Tuple[dict, bool]:
+def extract_metrics(
+    extraction_config: dict, stdout: str, stderr: str, exitcode: int, num_replicas: int
+) -> Tuple[dict, bool]:
     """Extract metrics from a given log.
 
     Args:
         extraction_config (dict): Configuration describing how to extract
             metrics from the log
-        log (str): The stdout and stderr from the benchmark containing metrics
+        stdout (str): The stdout from the benchmark containing metrics
+        stderr (str): The stderr from the benchmark containing metrics
         exitcode (int): The benchmark process exitcode
         num_replicas (int): The number of replicas used in this benchmark
 
@@ -230,7 +233,14 @@ def extract_metrics(extraction_config: dict, log: str, exitcode: int, num_replic
         metric_spec = set_config_defaults(metric)
 
         # Get all raw results from log according to all regexes given
-        all_results = [float(match) for match in re.findall(metric_spec["regexp"], log)]
+        all_results = []
+        for line in stdout.split("\n"):
+            for match in re.findall(metric_spec["regexp"], line):
+                all_results.append(float(match))
+
+        for line in stderr.split("\n"):
+            for match in re.findall(metric_spec["regexp"], line):
+                all_results.append(float(match))
 
         if any([math.isnan(ar) for ar in all_results]):
             logger.error(f"  '{name}' is a NaN")

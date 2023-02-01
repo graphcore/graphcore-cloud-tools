@@ -390,7 +390,8 @@ def run_benchmark_variant(
     # Get 'data' metrics, these are metrics scraped from the log
     results, extraction_failure = extract_metrics(
         benchmark_dict.get("data", {}),
-        stdout + stderr,
+        stdout,
+        stderr,
         exitcode,
         get_mpinum(variant_command),
     )

@@ -1,8 +1,8 @@
 # Copyright (c) 2022 Graphcore Ltd. All rights reserved.
 
+from __future__ import annotations
 import argparse
 import atexit
-from genericpath import exists
 import logging
 from multiprocessing.sharedctypes import Value
 import os
@@ -12,7 +12,7 @@ import textwrap
 import time
 from datetime import timedelta
 from io import TextIOWrapper
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Generator, Any
 from pathlib import Path
 import shutil
 import shlex
@@ -25,6 +25,52 @@ logger = logging.getLogger(__name__)
 
 class SlurmBenchmarkError(Exception):
     pass
+
+
+class StringFileEmulator:
+    def __init__(self, file_path):
+        self.file_path = file_path
+        self._open_for_reading()
+
+    def _open_for_reading(self) -> None:
+        self.file = open(self.file_path, "r")
+
+    def splitlines(self):
+        self.file.seek(0)
+        for line in self.file:
+            yield line
+
+    def split(self, str_pattern: str):
+        self.file.seek(0)
+        if str_pattern == "\n":
+            for line in self.file:
+                yield line
+        else:
+            for line in self.file:
+                for elem in line.split(str_pattern):
+                    yield elem
+
+    def __add__(self, rh_str: str) -> StringFileEmulator:
+        if isinstance(rh_str, str):
+            self.file.close()
+            with open(self.file_path, "a") as f:
+                f.write(rh_str)
+            self._open_for_reading()
+            return self
+        else:
+            raise ValueError(
+                "binary operator `+` with `StringFileEmulator` objects only supported with `str` right hand side operands"
+            )
+
+    def __contains__(self, value: Any) -> bool:
+        self.file.seek(0)
+        for line in self.file:
+            if value in line:
+                return True
+        return False
+
+    def close(self) -> None:
+        self.file.close()
 
 
 def check_slurm_configured() -> bool:
@@ -143,9 +189,9 @@ def configure_job_environment(
 
         # activate venv
         source {venv_path}/bin/activate
-        
+
         echo "[INFO] Upgrading pip, setuptools and wheel"
-        {pip_install_str} --upgrade setuptools wheel pip 
+        {pip_install_str} --upgrade setuptools wheel pip
     """
     )
 
@@ -153,13 +199,13 @@ def configure_job_environment(
     bash_script += textwrap.dedent(
         """
         echo "[INFO] determining CPU arch"
-        amd_arch=$(cpuinfo | grep -i amd)  
+        amd_arch=$(cpuinfo | grep -i amd)
         intel_arch=$(cpuinfo | grep -i intel)
-        if ! [[ -z amd_arch ]] 
-        then 
+        if ! [[ -z amd_arch ]]
+        then
             CPU_ARCH="amd"
         elif ! [[ -z intel_arch ]]
-        then 
+        then
             CPU_ARCH="intel"
         else
             echo "[ERROR] Only amd and intel arch are supported for now.." 1>&2
@@ -179,15 +225,13 @@ def configure_job_environment(
 
     framework = variant_name[0:3]
     if framework == "pyt":
-        packages = "poptorch*.whl"
-    elif framework == "tf1":
-        packages = "tensorflow-1*${CPU_ARCH}*.whl ipu_tensorflow_addons-1*.whl"
+        packages = "poptorch-*.whl"
     elif framework == "tf2":
         packages = "tensorflow-2*${CPU_ARCH}*.whl ipu_tensorflow_addons-2*.whl keras-2*.whl"
     elif framework == "pop":
         pass
     else:
-        err_msg = "Benchmark name should begin with pytorch, popart, tf1 or tf2."
+        err_msg = "Benchmark name should begin with pytorch, popart or tf2. Other frameworks are not supported."
         raise ValueError(err_msg)
 
     if framework != "pop":
@@ -637,8 +681,6 @@ def run_and_monitor_progress_on_slurm(
     job_submitted = False
     stdout_path = None
     stderr_path = None
-    stdout_log = None
-    stderr_log = None
 
     #  poll until job has been submited every 1s
     while proc.poll() is None and (stdout_path is None or stderr_path is None):
@@ -648,13 +690,12 @@ def run_and_monitor_progress_on_slurm(
                 job_id = o.split()[-1]
                 job_submitted = True
                 logger.info(f"SLURM Job submitted. Job id: {job_id}. Job name: {job_name}")
-            else:
-                time.sleep(1)
         else:
             if Path(stdout_log_path).exists():
                 stdout_path = stdout_log_path
             if Path(stderr_log_path).exists():
                 stderr_path = stderr_log_path
+        time.sleep(1)
 
     # something bad may have happened
     if proc.poll() is not None:
@@ -674,7 +715,6 @@ def run_and_monitor_progress_on_slurm(
 
     logger.info("Monitoring SLURM job")
 
-    outs = [[], []]
     total_time = 0
     timeout_error = False
 
@@ -684,12 +724,10 @@ def run_and_monitor_progress_on_slurm(
 
             stdout_data = stdout.read().decode()
             if stdout_data != "":
-                outs[0].append(stdout_data)
                 listener.write(stdout_data)
 
             stderr_data = stderr.read().decode()
             if stderr_data != "":
-                outs[1].append(stderr_data)
                 listener.write(stderr_data)
 
             listener.flush()
@@ -709,25 +747,18 @@ def run_and_monitor_progress_on_slurm(
             sys.stderr.flush()
 
         # read the rest
-        outs[0].extend(stdout.readlines())
-        listener.write(outs[0][-1])
-        outs[1].extend(stderr.readlines())
-        listener.write(outs[1][-1])
+        listener.write("".join(stdout.readlines()))
+        listener.write("".join(stderr.readlines()))
         listener.flush()
 
     sys.stderr.write("\r")
     sys.stderr.write("\n")
 
-    # construct stdout/stderr log for output
-    if stdout_log is None:
-        stdout_log = "".join(outs[0])
-    else:
-        stdout_log += "\n" + "".join(outs[0])
-
-    if stderr_log is None:
-        stderr_log = "".join(outs[1])
-    else:
-        stderr_log += "\n" + "".join(outs[1])
+    # open stdout and stderr log files which will be processed for metrics
+    stdout_log = StringFileEmulator(stdout_path)
+    stderr_log = StringFileEmulator(stderr_path)
+    atexit.register(lambda x: x.close(), stdout_log)
+    atexit.register(lambda x: x.close(), stderr_log)
 
     if timeout_error:
         stderr_log += f"\nTimeout ({timeout})\n"
