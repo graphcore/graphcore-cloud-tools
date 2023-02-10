@@ -30,10 +30,16 @@ def check_file(path, amend):
     first_line_index = 0
     line = "\n"
     with open(path, "r") as f:
-        regexp = r"{} Copyright \(c\) \d+ Graphcore Ltd. All (r|R)ights (r|R)eserved.".format(comment)
+        regexp = r"({} )*Copyright \(c\) \d+ Graphcore Ltd. All (r|R)ights (r|R)eserved.".format(comment)
 
         # Skip blank, comments and shebang
-        while (line == "\n" or line.startswith(comment) or line.startswith("#!")) and not re.match(regexp, line):
+        while (
+            line == "\n"
+            or line.startswith('"""')
+            or line.startswith("'''")
+            or line.startswith(comment)
+            or line.startswith("#!")
+        ) and not re.match(regexp, line):
             if line.startswith("#!"):
                 first_line_index += 1
             line = f.readline()
