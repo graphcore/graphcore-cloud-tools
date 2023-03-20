@@ -98,7 +98,7 @@ def should_reattempt_benchmark(variant, output, err, exitcode) -> Union[bool, st
 
 
 def run_and_monitor_progress(
-    cmd: list, listener: TextIOWrapper, timeout: int = None, monitor_ipus: bool = True, **kwargs
+    cmd: list, listener: TextIOWrapper, timeout: int = None, trace_period: int = 1, monitor_ipus: bool = True, **kwargs
 ) -> Tuple[str, str, int, List[str]]:
     """Run the benchmark monitor progress.
 
@@ -171,7 +171,9 @@ def run_and_monitor_progress(
         t_monitor = threading.Thread(target=monitor_thread, name="monitor_thread")
         t_monitor.start()
 
-    total_time = 0
+    t0 = int(time.time())
+    next_trace_time = t0 + trace_period
+    frame_idx = 0
     timeout_error = False
     while True:
         # Check if benchmarking process thread has terminated every second
@@ -180,21 +182,24 @@ def run_and_monitor_progress(
             if monitor_ipus:
                 t_monitor.join()
             break
-        total_time += 1
+        curr_time = int(time.time())
+        elapsed_time = curr_time - t0
 
         # Monitor if benchmark has timed out
-        if (timeout is not None) and (total_time >= timeout):
+        if timeout is not None and elapsed_time >= timeout:
             logger.error("TIMEOUT")
             timeout_error = True
             proc.kill()
 
-        sys.stderr.write("\r")
-        index = total_time % len(progress_frames)
-        sys.stderr.write(
-            f"\tBenchmark elapsed time: {str(timedelta(seconds=total_time))} "
-            f"({total_time} seconds) {progress_frames[index]}"
-        )
-        sys.stderr.flush()
+        if curr_time > next_trace_time:
+            next_trace_time = curr_time + trace_period
+            frame_idx = (frame_idx + 1) % len(progress_frames)
+            sys.stderr.write("\r")
+            sys.stderr.write(
+                f"\tBenchmark elapsed time: {str(timedelta(seconds=elapsed_time))} "
+                f"({elapsed_time} seconds) {progress_frames[frame_idx]}"
+            )
+            sys.stderr.flush()
 
     sys.stderr.write("\r")
     sys.stderr.write("\n")
@@ -335,6 +340,7 @@ def run_benchmark_variant(
                 cmd,
                 listener,
                 args.timeout,
+                trace_period=args.progress_trace_period,
                 monitor_ipus=args.gc_monitor,
                 cwd=cwd,
                 env=env,
@@ -794,3 +800,10 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
 
     parser.add_argument("--submit-on-slurm", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--slurm-machine-type", choices=["any", "mk2", "mk2w"], default="any", help=argparse.SUPPRESS)
+
+    parser.add_argument(
+        "--progress-trace-period",
+        default=1,
+        type=int,
+        help="Period between progress trace (in seconds)",
+    )
