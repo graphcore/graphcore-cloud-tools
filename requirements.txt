@@ -1,5 +1,8 @@
 awscli>=1.24.10
 cppimport>=22.07.17
-filelock
+filelock>=3.9.0
+gitpython>=3.1
+ipynbname>=2021.3.2
+nbformat>=5.7.3
 psutil>=5.7.0
 pyyaml>=5.4.1
