@@ -180,6 +180,8 @@ def assess_platform(args: argparse.Namespace):
         try:
             logger.info("-" * 40)
             for name, benchmark in benchmarks.items():
+                if args.benchmark and name not in args.benchmark:
+                    continue
                 logger.info(f"Preparing environment for '{name}'")
                 revertible_changes[name] = prepare_benchmark_environment(
                     benchmark,
@@ -191,6 +193,8 @@ def assess_platform(args: argparse.Namespace):
         finally:
             # Make sure that clean up happens even on failures
             for name, benchmark in benchmarks.items():
+                if args.benchmark and name not in args.benchmark:
+                    continue
                 logger.info(f"Cleaning-up environment for '{name}'")
                 cleanup_benchmark_environments(benchmark, revertible_changes.get(name))
 
