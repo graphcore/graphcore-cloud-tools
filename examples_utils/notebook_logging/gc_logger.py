@@ -1,558 +1,454 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 
 import base64
-import copy
+import boto3
 import hashlib
 import ipynbname
 import json
-import nbformat
 import os
 import pkg_resources
-import psutil
-import subprocess
+import re
 import time
 import multiprocessing as mp
-
 
 from datetime import datetime
 from pathlib import Path
 
 
 class GCLogger(object):
+    """Tracks the times at which cells are executed"""
+
     _instance = None
-    _CREATION_TIME = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    _CREATION_TIME = datetime.now()
 
-    _GC_LOG_STATE = None
-    _GC_LOG_PATH = Path("/notebooks").joinpath("gc_logs", f"{_CREATION_TIME}")
+    _LOG_STATE = None
+    _TIER_TYPE = os.getenv("TIER_TYPE", "UNKNOWN")
 
-    _FAST_POLLING_SECONDS = 10
-    _SLOW_POLLING_SECONDS = 60
+    _POLLING_SECONDS = 10
 
-    proc_list = []
+    _MP_MANAGER = mp.Manager()
+
+    _PAYLOAD = _MP_MANAGER.dict()
+
+    _PROC_LIST = []
 
     _BUCKET_NAME = "paperspace-uploading-test-bucket"
+    _FIREHOSE_STREAM_NAME = "paperspacenotebook_development"
+    _REGION = "eu-west-1"
 
-    def __new__(cls):
+    _FRAMEWORKS = ["poptorch", "torch", "transformers", "tensorflow", "poptorch-geometric"]
+
+    _COLUMN_TYPES = {
+        "event_time": "",
+        "execution_start_time": "",
+        "execution_end_time": "",
+        "event_type": "",
+        "user_onetime_id": "",
+        "notebook_path": "",
+        "notebook_repo_id": "",
+        "notebook_id": "",
+        "cluster_id": "",
+        "poptorch_version_major": 0,
+        "poptorch_version_minor": 0,
+        "poptorch_version_patch": "",
+        "torch_version_major": 0,
+        "torch_version_minor": 0,
+        "torch_version_patch": "",
+        "transformers_version_major": 0,
+        "transformers_version_minor": 0,
+        "transformers_version_patch": "",
+        "tensorflow_version_major": 0,
+        "tensorflow_version_minor": 0,
+        "tensorflow_version_patch": "",
+        "popgeometric_version_major": 0,
+        "popgeometric_version_minor": 0,
+        "popgeometric_version_patch": "",
+        "time_to_first_error_seconds": 0,
+        "error_trace": "",
+        "cell_output": "",
+        "code_executed": "",
+    }
+
+    def __new__(cls, ip):
         if cls._instance is None:
+            cls._SHELL = ip
             cls._instance = super(GCLogger, cls).__new__(cls)
 
-            if cls._GC_LOG_STATE is None:
+            if cls._LOG_STATE is None and cls._TIER_TYPE == "FREE":
+                cls._LOG_STATE = "ENABLED"
+
                 # Request user and save their preferred choice
                 print(
                     "\n============================================================================================================================================\n"
                     "Graphcore would like to collect information about the applications and code being run in this notebook, as well as the system it's being run \n"
                     "on to improve usability and support for future users. The information will be anonymised and sent to Graphcore \n\n"
-                    "You can disable this at any time by running `GCLogger.stop_logging()'`.\n\n"
+                    "You can disable this at any time by running `%%unload_ext gc_logger` from any cell.\n\n"
                     "Unless logging is disabled, the following information will be collected:\n"
                     "\t- User progression through the notebook\n"
                     "\t- Notebook details: number of cells, code being run and the output of the cells\n"
                     "\t- ML application details: Model information, performance, hyperparameters, and compilation time\n"
                     "\t- Environment details\n"
                     "\t- System performance: IO, memory and host compute performance\n\n"
-                    f"You can view the information being collected at: {cls._GC_LOG_PATH}\n"
                     "=============================================================================================================================================\n"
                 )
 
-                cls._GC_LOG_PATH.mkdir(parents=True, exist_ok=True)
+                # Prepare shared dict and populate with Nulls in schema format
+                cls._PAYLOAD.update(cls._COLUMN_TYPES)
 
                 # Create a short unique user ID
                 cls._UNIQUE_HASH = base64.urlsafe_b64encode(
-                    hashlib.md5(cls._CREATION_TIME.encode("utf-8")).digest()
+                    hashlib.md5(cls._CREATION_TIME.strftime("%Y-%m-%d %H:%M:%S.%f").encode("utf-8")).digest()
                 ).decode("ascii")[:12]
+                cls._PAYLOAD["user_onetime_id"] = cls._UNIQUE_HASH
 
-                # Help IPython find our custom extension
-                extension_path = Path(__file__).parent.joinpath("cell_logger.py").resolve()
-                destination_path = Path("/root/.ipython/extensions").resolve()
+                # Get AWS keys for firehose
+                config_file = Path(os.getenv("GCLOGGER_CONFIG"), ".config").resolve()
+                with open(config_file, "r") as file:
+                    aws_access_key = file.readline()
+                    aws_secret_key = file.readline()
 
-                subprocess.run(f"cp {extension_path} {destination_path}", shell=True)
+                cls._FIREHOSE_CLIENT = boto3.client(
+                    "firehose",
+                    aws_access_key_id=aws_access_key[:2] + aws_access_key[3:],
+                    aws_secret_access_key=aws_secret_key[:2] + aws_secret_key[3:],
+                    region_name=cls._REGION,
+                )
 
-                # Create necessary folders for later
-                destination_path.joinpath("cell_logs", "errors").mkdir(parents=True, exist_ok=True)
+                # Convert data collection into repeated polling with update checking
+                background_functions = [
+                    cls.__get_notebook_metadata,
+                    cls.__get_frameworks_versions,
+                    # TODO: Refine and reintroduce these
+                    # cls.__get_executables,
+                    # cls.__get_weights,
+                    # cls.__get_datasets,
+                    # cls.__get_compile_times,
+                ]
+
+                # Start multiprocess procs for all functions
+                cls._PROC_LIST = [mp.Process(target=func) for func in background_functions]
+                for proc in cls._PROC_LIST:
+                    proc.daemon = True
+                    proc.start()
 
         return cls._instance
 
-    @classmethod
-    def __write_json(cls, dict_to_write, filename, mode="w"):
-
-        try:
-            json_path = cls._GC_LOG_PATH.joinpath(f"{filename}.json")
-
-            if mode == "w":
-                with open(json_path, "w") as outfile:
-                    json.dump(dict_to_write, outfile)
-
-            elif mode == "a":
-                # Incase it dosent, we cant read and it wont auto-create
-                if not json_path.exists():
-                    with open(json_path, "w+") as touchfile:
-                        json.dump({}, touchfile)
-
-                # Read and update
-                with open(json_path, "r") as infile:
-                    old_dict = json.load(infile)
-
-                new_dict = dict(old_dict, **dict_to_write)
-
-                with open(json_path, "w") as outfile:
-                    json.dump(new_dict, outfile)
-
-            else:
-                return
-
-        # Suppress all outputs and continue
-        except:
-            pass
-
-    @classmethod
-    def __log_env_block(cls):
-
-        if cls._GC_LOG_STATE == "DISABLED":
-            return
-
-        env_dict = dict(copy.deepcopy(os.environ))
-
-        # TODO: filter anything from here before saving?
-        # TODO: process any vars for easier use later?
-
-        cls.__write_json(env_dict, "initial_environment_state")
-
-    @classmethod
-    def __log_sysperf_info(cls):
-        if cls._GC_LOG_STATE == "DISABLED":
-            return
-
-        log_dict = {}
-
-        # Record some constants (CPU count, freq, disk setup)
-        log_dict["CPU_count"] = psutil.cpu_count()
-        log_dict["CPU_stats"] = str(psutil.cpu_stats())
-        log_dict["CPU_freq"] = str(psutil.cpu_freq())
-        cls.__write_json(log_dict, "cpu_info")
-
-        # Collect all output of lscpu
-        with open(cls._GC_LOG_PATH.joinpath("lscpu.json"), "w") as outfile:
-            command = "lscpu -J"
-            subprocess.run(command, stdout=outfile, stderr=outfile, shell=True, text=True)
-
-        # Collect quick disk performance stats (Disk <-> Host) in background
-        with open(cls._GC_LOG_PATH.joinpath("fio_results.log"), "w") as outfile:
-            command = (
-                "fio --name=random-write --ioengine=posixaio --rw=randwrite "
-                "--bs=4k --size=1g --numjobs=1 --iodepth=1 --runtime=5 "
-                "--time_based --end_fsync=1 --output-format=json+"
-            )
-            subprocess.run(command, stdout=outfile, stderr=outfile, shell=True, text=True)
-
-        # Clean up files from profiling
-        # Subprocess since paperspace env dosent like unlink/remove
-        test_file = cls._GC_LOG_PATH.parent.joinpath("random-write.0.0")
-        if test_file.exists():
-            subprocess.run(f"rm -rf {test_file}", shell=True)
-
-    @classmethod
-    def __log_ipuperf_info(cls):
-        if cls._GC_LOG_STATE == "DISABLED":
-            return
-
-        # Get information for each IPU available
-        with open(cls._GC_LOG_PATH.joinpath("ipu_perf.json"), "a") as outfile:
-            num_ipus = int(os.getenv("NUM_AVAILABLE_IPU", "0"))
-
-            # Host <-> IPU sync latency
-            for i in range(num_ipus):
-                subprocess.run(
-                    f"gc-hostsynclatencytest -d {i} -j",
-                    stdout=outfile,
-                    stderr=outfile,
-                    shell=True,
-                )
-
-            # Host <-> IPU data transfer
-            for i in range(num_ipus):
-                subprocess.run(
-                    f"gc-hosttraffictest -d {i} -j",
-                    stdout=outfile,
-                    stderr=outfile,
-                    shell=True,
-                )
-
-            # IPU <-> IPU data transfer
-            subprocess.run(
-                "gc-iputraffictest --all-links -j",
-                stdout=outfile,
-                stderr=outfile,
-                shell=True,
-            )
-
-            vipu_data = {
-                "vipu_partition_id": os.getenv("IPUOF_VIPU_API_PARTITION_ID"),
-                "hostname": os.getenv("HOSTNAME"),
-                "num_ipus": num_ipus,
-            }
-            try:
-                json.dump(vipu_data, outfile)
-            # Suppress all outputs and continue
-            except:
-                pass
-
-    @classmethod
-    def __log_notebook_info(cls):
-        if cls._GC_LOG_STATE == "DISABLED":
-            return
-
-        notebook_metadata = {
-            "notebook_path": str(ipynbname.path()),
-            "repo_id": os.getenv("PAPERSPACE_NOTEBOOK_REPO_ID"),
-            "cluster_id": os.getenv("PAPERSPACE_CLUSTER_ID"),
-            "notebook_id": os.getenv("PAPERSPACE_NOTEBOOK_ID"),
-            "jupyter_token": os.getenv("JUPYTER_TOKEN"),
-            "paperspace_fqdn": os.getenv("PAPERSPACE_FQDN"),
-            "paperspace_cluster_id": os.getenv("PAPERSPACE_CLUSTER_ID"),
-            "paperspace_metric_workload_id": os.getenv("PAPERSPACE_METRIC_WORKLOAD_ID"),
-        }
-        cls.__write_json(notebook_metadata, "notebook_info")
-
-        # Query pip packages and versions
-        pkgs_dict = {i.key: i.version for i in pkg_resources.working_set}
-        cls.__write_json(pkgs_dict, "python_packages")
-
-    @classmethod
-    def __log_sysperf_metrics(cls):
-        while True:
-            if cls._GC_LOG_STATE == "DISABLED":
-                return
-
-            system_dict = {
-                datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"): {
-                    "cpu_percent": psutil.cpu_percent(),
-                    "virtual_memory": psutil.virtual_memory().percent,
-                    "swap_memory": psutil.swap_memory().percent,
-                    "disk_used": psutil.disk_usage("/").used,
-                }
-            }
-
-            cls.__write_json(system_dict, "sys_perf", "a")
-
-            time.sleep(cls._FAST_POLLING_SECONDS)
-
-    @classmethod
-    def __get_executables(cls):
-        cache_dirs = [
-            ipynbname.path().parents[1],  # Local
-            os.getenv("POPLAR_EXECUTABLE_CACHE_DIR"),  # HF default
-            os.getenv("POPTORCH_CACHE_DIR"),  # Possible for non-HF optimum runs
-        ]
-        popef_files = []
-
-        # Get all .popef files name and size
-        for dir_path in cache_dirs:
-            if dir_path:
-                popef_files.extend(Path(dir_path).glob("*.popef"))
-
-        popef_dict = {}
-        # Analyse the popef file using gc CLI tool
-        for file in popef_files:
-            proc = subprocess.run(
-                f"popef_dump --all {file}",
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                shell=True,
-                text=True,
-            )
-
-            popef_dict[str(file)] = proc.stdout
-
-        cls.__write_json(popef_dict, "popef_files")
-
-    @classmethod
-    def __get_weights(cls):
-        cache_dirs = [
-            ipynbname.path().parents[1],  # Local
-            os.getenv("CHECKPOINT_DIR"),  # HF default
-            os.getenv("HUGGINGFACE_HUB_CACHE"),  # Another possible HF path?
-            os.getenv("TRANSFORMERS_CACHE"),  # Possible checkpoints here
-        ]
-
-        # Search for all weight files and poll size/name
-        weights_extensions = ["onnx", "pt", "pb"]
-        weight_files = []
-        for dir_path in cache_dirs:
-            if dir_path:
-                for ext in weights_extensions:
-                    weight_files.extend(Path(dir_path).glob(f"**/*.{ext}"))
-
-        weight_dict = {}
-        for file in weight_files:
-            weight_dict[str(file)] = file.stat().st_size
-
-        cls.__write_json(weight_dict, "weight_files")
-
-    @classmethod
-    def __get_datasets(cls):
-        dataset_dirs = [
-            ipynbname.path().parents[1],  # Local
-            os.getenv("HF_DATASETS_CACHE"),  # HF default
-            os.getenv("PUBLIC_DATASET_DIR"),  # Our default
-            os.getenv("DATASET_DIR"),  # /tmp/ location
-        ]
-
-        # Get all possible dataset dirs
-        datasets = []
-        for data_path in dataset_dirs:
-            datasets.extend(list(Path(data_path).iterdir()))
-
-        # Find sizes
-        dataset_sizes = {}
-        for folder in datasets:
-            proc = subprocess.run(
-                ["du", "-sh", str(folder)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-            )
-
-            dataset_sizes[str(folder)] = str(proc.stdout).split("\t")[0]
-
-        cls.__write_json(dataset_sizes, "datasets")
-
-    @classmethod
-    def __log_file_metrics(cls):
-        while True:
-            if cls._GC_LOG_STATE == "DISABLED":
-                return
-
-            # Get possible .popef files
-            cls.__get_executables()
-
-            # Get possible weights and checkpoints files
-            cls.__get_weights()
-
-            # Get all datasets and sizes available
-            cls.__get_datasets()
-
-            time.sleep(cls._SLOW_POLLING_SECONDS)
-
-    @classmethod
-    def __log_notebook_progression(cls):
-        """Track cell exeuction order via timestamps
-
-        Note: We use a custom IPython extension to track events, and use it to
-        run some lines before any cell is executed. To avoid any noticeable
-        delay, we keep this as light as possible, just recording the timestamp
-        and cell input code.
-
-        We write this to a cache file in .ipython/extensions/ and then append
-        it to our main storage in this loop, flushing the cache afterwards.
-        """
-
-        while True:
-            if cls._GC_LOG_STATE == "DISABLED":
-                return
-
-            # Load cache files written by CellTracker extension
-            cache_path = Path("/root/.ipython/extensions/cell_logs/").resolve()
-            cache_files = cache_path.glob("**/*.txt")
-
-            # Read and combine all cell execution logs into one
-            cell_execution_dict = {}
-            for file in cache_files:
-                with open(file, "r") as f:
-                    code = f.read()
-
-                cell_execution_dict[file.stem] = code
-
-            # Append to data storage Json in logging dir
-            cls.__write_json(cell_execution_dict, "cell_logs", "a")
-
-            # Delete all cached files
-            # Subprocess since paperspace env dosent like unlink/remove
-            for file in cache_files:
-                subprocess.run(f"rm -rf {file}", shell=True)
-
-            time.sleep(cls._FAST_POLLING_SECONDS)
-
-    @classmethod
-    def __log_errors(cls):
-        """Log all errors and the code that produced them.
-
-        Note: We use a custom IPython extension to track events, and use it to
-        run some lines before any cell is executed. To avoid any noticeable
-        delay, we keep this as light as possible, just recording the timestamp,
-        cell input code and error.
-
-        We write this to a cache file in .ipython/extensions/ and then append
-        it to our main storage in this loop, flushing the cache afterwards.
-        """
-
-        while True:
-            if cls._GC_LOG_STATE == "DISABLED":
-                return
-
-            # Load cache files written by CellTracker extension
-            cache_path = Path("/root/.ipython/extensions/cell_logs/errors").resolve()
-            cache_files = cache_path.glob("**/*.json")
-
-            # Read and combine all cell execution logs into one
-            error_dict = {}
-            for file in cache_files:
-                with open(file, "r") as f:
-                    error = json.load(f)
-
-                error_dict[file.stem] = error
-
-            # Append to data storage Json in logging dir
-            cls.__write_json(error_dict, "error_logs", "a")
-
-            # Delete all cached files
-            # Subprocess since paperspace env dosent like unlink/remove
-            for file in cache_files:
-                subprocess.run(f"rm -rf {file}", shell=True)
-
-            time.sleep(cls._FAST_POLLING_SECONDS)
-
-    @classmethod
-    def __log_compile_times(cls):
-        """Capture compile time from noteboook.py
-
-        Note: Because of how general this task is, it seems the best we can do
-        for now is capture all output that mentions 'compilation' etc. and sift
-        through the outputs later.
-
-        If we can get more specificity on how compilation happens, what we can
-        expect etc. (HF only, model.compile() explicit calls etc.) then we can
-        clean this up a lot and be more particular about what we collect.
-        """
-
-        while True:
-            if cls._GC_LOG_STATE == "DISABLED":
-                return
-
-            compilation_statements = {}
-
-            with open(ipynbname.path()) as notebook:
-                raw_notebook = nbformat.read(notebook, nbformat.NO_CONVERT)
-
-            # Get all code cells, search for compile time
-            code_cell_outputs = [cell["outputs"] for cell in raw_notebook["cells"] if cell["cell_type"] == "code"]
-
-            for output in code_cell_outputs:
-                # Some cells have a seperate 'data' outputs. We need 'text' output
-                if len(output) > 1:
-                    output = output[1]
-
-                if output:
-                    try:
-                        text = output[0].get("text")
-
-                        # Assuming HF optimum pipeline output
-                        # Check NoneType first else substring search throws
-                        if text is not None and "Graph compilation: 100%" in text:
-                            compilation_statements[datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")] = text
-
-                    # Suppress all outputs and continue
-                    except:
-                        pass
-
-            if compilation_statements:
-                cls.__write_json(compilation_statements, "compile_statments", "a")
-
-            time.sleep(cls._SLOW_POLLING_SECONDS)
-
-    @classmethod
-    def __log_session_stats(cls):
-        """Record how long a user is in this session for and when they fail."""
-        timings_dict = {}
-
-        while True:
-            if cls._GC_LOG_STATE == "DISABLED":
-                return
-
-            timings_dict["session_time"] = str(
-                (datetime.now() - datetime.strptime(cls._CREATION_TIME, "%Y-%m-%dT%H:%M:%S.%fZ")).total_seconds()
-            )
-            cls.__write_json(timings_dict, "session_timings")
-
-            # TODO: Time until first error
-            # TODO: Cell input/output/index/error contents
-
-            time.sleep(cls._FAST_POLLING_SECONDS)
-
-    @classmethod
-    def __upload_files(cls):
-        while True:
-            if cls._GC_LOG_STATE == "DISABLED":
-                return
-
-            # Compose the AWSCLI upload command - Unique hash used to identify this user for this session ONLY
-            cmd = [
-                "aws",
-                "s3",
-                "cp",
-                "--recursive",
-                f"{cls._GC_LOG_PATH}",
-                f"s3://{cls._BUCKET_NAME}/{cls._UNIQUE_HASH}",
-            ]
-
-            subprocess.run(
-                cmd,
-                env=os.environ,
-            )
-
-            time.sleep(cls._FAST_POLLING_SECONDS)
-
-    @classmethod
-    def start_logging(cls):
-        if cls._GC_LOG_STATE == "ENABLED":
-            print("GCLogger is already logging")
-            return
-
-        cls._GC_LOG_STATE = "ENABLED"
-
-        background_functions = [
-            # One-time collection
-            # (constant, static information on system/env)
-            cls.__log_env_block,
-            cls.__log_sysperf_info,
-            cls.__log_ipuperf_info,
-            cls.__log_notebook_info,
-            # Frequent polling every cls._FAST_POLLING_SECONDS
-            # (changing values, metrics, measurements on system/env)
-            cls.__log_sysperf_metrics,
-            cls.__log_notebook_progression,
-            cls.__log_errors,
-            cls.__log_session_stats,
-            cls.__upload_files,
-            # Infrequent polling every cls._SLOW_POLLING_SECONDS
-            # (names, file sizes, packages etc.)
-            cls.__log_file_metrics,
-            cls.__log_compile_times,
-        ]
-
-        # Start multiprocess procs for all functions
-        cls.proc_list = [mp.Process(target=func) for func in background_functions]
-
-        for proc in cls.proc_list:
-            proc.daemon = True
-            proc.start()
+    def __init__(self, ip):
+        return
 
     @classmethod
     def stop_logging(cls):
-        if cls._GC_LOG_STATE == "DISABLED":
-            print("GCLogger has already stopped logging")
-            return
+        """Continously check if logging should be terminated."""
 
-        if cls._GC_LOG_STATE is None:
-            print("GCLogger has not logged anything yet")
-            return
-
-        cls._GC_LOG_STATE = "DISABLED"
+        cls._LOG_STATE = "DISABLED"
 
         # Kill logging processes
-        for proc in cls.proc_list:
+        for proc in cls._PROC_LIST:
             proc.terminate()
             proc.join()
 
         print("GCLogger has stopped logging")
 
+    @classmethod
+    def __update_payload(cls, output: str, name: str) -> str:
+        """Update the payload with empty types as backups."""
 
-GCLogger()
+        if output:
+            cls._PAYLOAD[name] = output
+        else:
+            empty_output_type = type(output)
+            cls._PAYLOAD[name] = empty_output_type()
+
+    @classmethod
+    def __get_notebook_metadata(cls):
+        """Get notebook metadata."""
+
+        while True:
+            if cls._LOG_STATE == "DISABLED":
+                return
+
+            try:
+                notebook_path = str(ipynbname.path())
+            except:
+                notebook_path = ""
+
+            notebook_metadata = {
+                "notebook_path": notebook_path,
+                "notebook_repo_id": os.getenv("PAPERSPACE_NOTEBOOK_REPO_ID"),
+                "notebook_id": os.getenv("PAPERSPACE_NOTEBOOK_ID"),
+                "cluster_id": os.getenv("PAPERSPACE_CLUSTER_ID"),
+            }
+
+            for key, val in notebook_metadata.items():
+                cls.__update_payload(val, key)
+
+            time.sleep(cls._POLLING_SECONDS)
+
+    @classmethod
+    def __get_frameworks_versions(cls) -> str:
+        """Get framework versions."""
+
+        while True:
+            if cls._LOG_STATE == "DISABLED":
+                return
+
+            try:
+                installed_packages = pkg_resources.working_set
+            except:
+                installed_packages = {}
+
+            # Query pip packages and versions for frameworks
+            all_pkgs = {i.key: i.version for i in installed_packages}
+            for fw in cls._FRAMEWORKS:
+                version = all_pkgs.get(fw, "..").split(".")
+
+                if fw == "poptorch-geometric":
+                    fw = "popgeometric"
+
+                cls.__update_payload(int(version[0]) if version[0] else 0, f"{fw}_version_major")
+                cls.__update_payload(int(version[1]) if version[0] else 0, f"{fw}_version_minor")
+                cls.__update_payload(version[2], f"{fw}_version_patch")
+
+            time.sleep(cls._POLLING_SECONDS)
+
+    # @classmethod
+    # def __get_executables(cls) -> str:
+    #     """Get popef file paths and metadata from wherever possible."""
+
+    #     # Get all .popef files name and size
+    #     cache_dirs = [
+    #         ipynbname.path().parents[1],  # Local
+    #         os.getenv("POPLAR_EXECUTABLE_CACHE_DIR"),  # HF default
+    #         os.getenv("POPTORCH_CACHE_DIR"),  # Possible for non-HF optimum runs
+    #     ]
+    #     popef_files = []
+    #     popef_file_dumps = {}
+
+    #     while True:
+    #         if cls._LOG_STATE == "DISABLED":
+    #             return
+
+    #         for dir_path in cache_dirs:
+    #             if dir_path:
+    #                 popef_files.extend(Path(dir_path).glob("*.popef"))
+
+    #         # Analyse the popef file using gc CLI tool
+    #         for file in popef_files:
+    #             proc = subprocess.run(
+    #                 f"popef_dump -m {file}",
+    #                 stdout=subprocess.PIPE,
+    #                 stderr=subprocess.STDOUT,
+    #                 shell=True,
+    #                 text=True,
+    #             )
+
+    #             popef_file_dumps[str(file)] = proc.stdout
+
+    #         cls.__update_payload(popef_file_dumps, "popef_file_dumps")
+
+    #         time.sleep(cls._POLLING_SECONDS)
+
+    # @classmethod
+    # def __get_weights(cls) -> str:
+    #     """Get weights file paths and sizes from wherever possible."""
+
+    #     # Search for all weight files and poll size/name
+    #     weight_files = []
+    #     weights_extensions = ["onnx", "pt", "pb"]
+    #     cache_dirs = [
+    #         ipynbname.path().parents[1],  # Local
+    #         os.getenv("CHECKPOINT_DIR"),  # HF default
+    #         os.getenv("HUGGINGFACE_HUB_CACHE"),  # Another possible HF path?
+    #         os.getenv("TRANSFORMERS_CACHE"),  # Possible checkpoints here
+    #     ]
+
+    #     while True:
+    #         if cls._LOG_STATE == "DISABLED":
+    #             return
+
+    #         for dir_path in cache_dirs:
+    #             if dir_path:
+    #                 for ext in weights_extensions:
+    #                     weight_files.extend(Path(dir_path).glob(f"**/*.{ext}"))
+
+    #         weight_file_sizes = {}
+    #         for file in weight_files:
+    #             weight_file_sizes[str(file)] = file.stat().st_size
+
+    #         cls.__update_payload(weight_file_sizes, "weight_file_sizes")
+
+    #         time.sleep(cls._POLLING_SECONDS)
+
+    # @classmethod
+    # def __get_datasets(cls) -> str:
+    #     """Get dataset paths and sizes from wherever possible"""
+
+    #     # Get all possible dataset dirs
+    #     datasets = []
+    #     dataset_dirs = [
+    #         ipynbname.path().parents[1],  # Local
+    #         os.getenv("HF_DATASETS_CACHE"),  # HF default
+    #         os.getenv("PUBLIC_DATASETS_DIR"),  # Our default
+    #         os.getenv("DATASETS_DIR"),  # /tmp/ location
+    #     ]
+
+    #     while True:
+    #         if cls._LOG_STATE == "DISABLED":
+    #             return
+
+    #         for data_path in dataset_dirs:
+    #             datasets.extend(list(Path(data_path).iterdir()))
+
+    #         # Find sizes
+    #         dataset_sizes = ""
+    #         for folder in datasets:
+    #             proc = subprocess.run(
+    #                 ["du", "-sh", str(folder)],
+    #                 stdout=subprocess.PIPE,
+    #                 stderr=subprocess.STDOUT,
+    #                 shell=True,
+    #                 text=True,
+    #             )
+
+    #             dataset_sizes = str(proc.stdout).split("\t")[0]
+
+    #         cls.__update_payload(dataset_sizes, "dataset_sizes")
+
+    #         time.sleep(cls._POLLING_SECONDS)
+
+    # @classmethod
+    # def __get_compile_times(cls):
+    #     """Capture compile time from noteboook.py
+
+    #     Note: Because of how general this task is, it seems the best we can do
+    #     for now is capture all output that mentions 'compilation' etc. and sift
+    #     through the outputs later.
+
+    #     If we can get more specificity on how compilation happens, what we can
+    #     expect etc. (HF only, model.compile() explicit calls etc.) then we can
+    #     clean this up a lot and be more particular about what we collect.
+    #     """
+
+    #     while True:
+    #         if cls._LOG_STATE == "DISABLED":
+    #             return
+
+    #         with open(ipynbname.path()) as notebook:
+    #             raw_notebook = nbformat.read(notebook, nbformat.NO_CONVERT)
+
+    #         # Get all code cells, search for compile time
+    #         code_cells = [
+    #             (cell["source"], cell["outputs"]) for cell in raw_notebook["cells"] if cell["cell_type"] == "code"
+    #         ]
+
+    #         compilation_times = {}
+    #         for input, output in code_cells:
+    #             # Some cells have a seperate 'data' outputs. We need 'text' output
+    #             if len(output) > 1:
+    #                 output = output[1]
+
+    #             if output:
+    #                 try:
+    #                     text = output[0].get("text")
+
+    #                     # Assuming HF optimum pipeline output
+    #                     # Check NoneType first else substring search throws
+    #                     if text is not None and "Graph compilation: 100%" in text:
+    #                         compilation_times[input] = text
+
+    #                 # Suppress all outputs and continue
+    #                 except:
+    #                     pass
+
+    #         cls.__update_payload(
+    #             {datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"): json.dumps(compilation_times)},
+    #             "compilation_time_traces",
+    #         )
+
+    #         time.sleep(cls._POLLING_SECONDS)
+
+    @classmethod
+    def __sanitize_payload(cls, payload):
+
+        for key, val in payload.items():
+            if type(val) == str:
+                payload[key] = val.replace('"', "'")
+
+        payload = json.dumps(payload, separators=(",", ":"))
+        payload = payload.encode("utf-8")
+
+        return payload
+
+    @classmethod
+    def __firehose_put(cls, payload):
+        """Submit a PUT record request to the firehose stream."""
+
+        if cls._LOG_STATE == "DISABLED":
+            return
+
+        payload["event_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+
+        clean_payload = cls.__sanitize_payload(payload)
+
+        cls._FIREHOSE_CLIENT.put_record(
+            DeliveryStreamName=cls._FIREHOSE_STREAM_NAME,
+            Record={"Data": clean_payload},
+        )
+
+    @classmethod
+    def pre_run_cell(cls, info):
+        """Runs just before any cell is run."""
+        cls._PAYLOAD["execution_start_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+
+    @classmethod
+    def post_run_cell(cls, result):
+        """Runs just after any cell is run."""
+
+        event_dict = cls._PAYLOAD._getvalue()
+
+        # Common values to all events
+        event_dict["execution_end_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+        event_dict["code_executed"] = str(result.info.raw_cell)
+        event_dict["cell_output"] = str(result.result)
+
+        if result.error_before_exec or result.error_in_exec:
+            # Only get this value once
+            if cls._PAYLOAD["time_to_first_error_seconds"] == 0:
+                cls._PAYLOAD["time_to_first_error_seconds"] = int((datetime.now() - cls._CREATION_TIME).total_seconds())
+
+            event_dict["event_type"] = "error"
+            event_dict["error_trace"] = (
+                str(result.error_before_exec) if result.error_before_exec else str(result.error_in_exec)
+            )
+        else:
+            event_dict["event_type"] = "success"
+            event_dict["error_trace"] = ""
+
+        # if "Graph compilation" in event_dict["cell_output"]:
+        #     event_dict["event_type"] = "Compilation attempt"
+
+        #     # Detect compile time from output
+        #     for line in event_dict["cell_output"].splitlines():
+        #         if "Graph compilation: 100%" in line:
+        #             compilation_time_string = re.search("(?<=\[)(.*?)(?=\])", line)
+        #             compilation_time_minutes = compilation_time_string.split("<")[0]
+        #             compilation_time_seconds = int(compilation_time_minutes[:2])*60 + int(compilation_time_minutes[3:])
+
+        #             event_dict["compilation_time_seconds"] = compilation_time_seconds
+        # else:
+        #     event_dict["compilation_time_seconds"] = 0
+
+        cls.__firehose_put(event_dict)
+
+
+def load_ipython_extension(ip):
+    global _gc_logger
+    _gc_logger = GCLogger(ip)
+    ip.events.register("pre_run_cell", _gc_logger.pre_run_cell)
+    ip.events.register("post_run_cell", _gc_logger.post_run_cell)
+
+
+def unload_ipython_extension(ip):
+    global _gc_logger
+    _gc_logger.stop_logging()
+    del _gc_logger
