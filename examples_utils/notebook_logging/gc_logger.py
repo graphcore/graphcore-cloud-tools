@@ -104,8 +104,8 @@ class GCLogger(object):
                 # Get AWS keys for firehose
                 config_file = Path(os.getenv("GCLOGGER_CONFIG"), ".config").resolve()
                 with open(config_file, "r") as file:
-                    aws_access_key = file.readline()
-                    aws_secret_key = file.readline()
+                    aws_access_key = base64.b64decode(file.readline().encode("ascii")).decode("ascii").strip()
+                    aws_secret_key = base64.b64decode(file.readline().encode("ascii")).decode("ascii").strip()
 
                 cls._FIREHOSE_CLIENT = boto3.client(
                     "firehose",
