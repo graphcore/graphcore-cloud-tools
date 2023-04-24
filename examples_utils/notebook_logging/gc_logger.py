@@ -31,8 +31,7 @@ class GCLogger(object):
 
     _PROC_LIST = []
 
-    _BUCKET_NAME = "paperspace-uploading-test-bucket"
-    _FIREHOSE_STREAM_NAME = "paperspacenotebook_development"
+    _FIREHOSE_STREAM_NAME = os.getenv("FIREHOSE_STREAM_NAME", "paperspacenotebook_production")
     _REGION = "eu-west-1"
 
     _FRAMEWORKS = ["poptorch", "torch", "transformers", "tensorflow", "poptorch-geometric"]
@@ -76,30 +75,6 @@ class GCLogger(object):
             if cls.LOG_STATE is None and cls._TIER_TYPE == "FREE":
                 cls.LOG_STATE = "ENABLED"
 
-                # Request user and save their preferred choice
-                print(
-                    "\n============================================================================================================================================\n"
-                    "Graphcore would like to collect information about the applications and code being run in this notebook, as well as the system it's being run \n"
-                    "on to improve usability and support for future users. The information will be anonymised and sent to Graphcore \n\n"
-                    "You can disable this at any time by running `%%unload_ext gc_logger` from any cell.\n\n"
-                    "Unless logging is disabled, the following information will be collected:\n"
-                    "\t- User progression through the notebook\n"
-                    "\t- Notebook details: number of cells, code being run and the output of the cells\n"
-                    "\t- ML application details: Model information, performance, hyperparameters, and compilation time\n"
-                    "\t- Environment details\n"
-                    "\t- System performance: IO, memory and host compute performance\n\n"
-                    "=============================================================================================================================================\n"
-                )
-
-                # Prepare shared dict and populate with Nulls in schema format
-                cls._PAYLOAD.update(cls._COLUMN_TYPES)
-
-                # Create a short unique user ID
-                cls._UNIQUE_HASH = base64.urlsafe_b64encode(
-                    hashlib.md5(cls._CREATION_TIME.strftime("%Y-%m-%d %H:%M:%S.%f").encode("utf-8")).digest()
-                ).decode("ascii")[:12]
-                cls._PAYLOAD["user_onetime_id"] = cls._UNIQUE_HASH
-
                 try:
                     # Get AWS keys for firehose
                     config_file = Path(os.getenv("GCLOGGER_CONFIG"), ".config").resolve()
@@ -113,9 +88,34 @@ class GCLogger(object):
                         aws_secret_access_key=aws_secret_key[:2] + aws_secret_key[3:],
                         region_name=cls._REGION,
                     )
+
+                    # Inform user
+                    print(
+                        "\n============================================================================================================================================\n"
+                        "Graphcore would like to collect information about the applications and code being run in this notebook, as well as the system it's being run \n"
+                        "on to improve usability and support for future users. The information will be anonymised and sent to Graphcore \n\n"
+                        "You can disable this at any time by running `%%unload_ext gc_logger` from any cell.\n\n"
+                        "Unless logging is disabled, the following information will be collected:\n"
+                        "\t- User progression through the notebook\n"
+                        "\t- Notebook details: number of cells, code being run and the output of the cells\n"
+                        "\t- ML application details: Model information, performance, hyperparameters, and compilation time\n"
+                        "\t- Environment details\n"
+                        "\t- System performance: IO, memory and host compute performance\n\n"
+                        "=============================================================================================================================================\n"
+                    )
+
                 except:
-                    cls.LOG_STATE = "DISBALED"
+                    cls.LOG_STATE = "DISABLED"
                     return cls._instance
+
+                # Prepare shared dict and populate with Nulls in schema format
+                cls._PAYLOAD.update(cls._COLUMN_TYPES)
+
+                # Create a short unique user ID
+                cls._UNIQUE_HASH = base64.urlsafe_b64encode(
+                    hashlib.md5(cls._CREATION_TIME.strftime("%Y-%m-%d %H:%M:%S.%f").encode("utf-8")).digest()
+                ).decode("ascii")[:12]
+                cls._PAYLOAD["user_onetime_id"] = cls._UNIQUE_HASH
 
                 # Convert data collection into repeated polling with update checking
                 background_functions = [
@@ -372,6 +372,9 @@ class GCLogger(object):
 
     @classmethod
     def __sanitize_payload(cls, payload):
+
+        if cls.LOG_STATE == "DISABLED":
+            return
 
         for key, val in payload.items():
             if type(val) == str:
