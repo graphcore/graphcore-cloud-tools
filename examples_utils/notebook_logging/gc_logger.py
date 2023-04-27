@@ -94,7 +94,7 @@ class GCLogger(object):
                         "\n============================================================================================================================================\n"
                         "Graphcore would like to collect information about the applications and code being run in this notebook, as well as the system it's being run \n"
                         "on to improve usability and support for future users. The information will be anonymised and sent to Graphcore \n\n"
-                        "You can disable this at any time by running `%%unload_ext gc_logger` from any cell.\n\n"
+                        "You can disable this at any time by running `%unload_ext gc_logger` from any cell.\n\n"
                         "Unless logging is disabled, the following information will be collected:\n"
                         "\t- User progression through the notebook\n"
                         "\t- Notebook details: number of cells, code being run and the output of the cells\n"
@@ -159,60 +159,68 @@ class GCLogger(object):
     def __get_notebook_metadata(cls):
         """Get notebook metadata."""
 
-        while True:
-            if cls.LOG_STATE == "DISABLED":
-                return
+        try:
+            while True:
+                if cls.LOG_STATE == "DISABLED":
+                    return
 
-            try:
-                notebook_path = str(ipynbname.path())
-            except:
-                notebook_path = ""
+                try:
+                    notebook_path = str(ipynbname.path())
+                except:
+                    notebook_path = "failed-to-get-nb-path"
 
-            # Encode and hash
-            notebook_id = os.getenv("PAPERSPACE_NOTEBOOK_ID")
-            salted_id = notebook_id + datetime.now().strftime("%Y-%m-%d")
-            anonymised_notebook_id = base64.urlsafe_b64encode(hashlib.md5(salted_id.encode("utf-8")).digest()).decode(
-                "ascii"
-            )[:16]
+                # Encode and hash
+                notebook_id = os.getenv("PAPERSPACE_NOTEBOOK_ID")
+                salted_id = notebook_id + datetime.now().strftime("%Y-%m-%d")
+                anonymised_notebook_id = base64.urlsafe_b64encode(
+                    hashlib.md5(salted_id.encode("utf-8")).digest()
+                ).decode("ascii")[:16]
 
-            notebook_metadata = {
-                "notebook_path": notebook_path,
-                "notebook_repo_id": os.getenv("PAPERSPACE_NOTEBOOK_REPO_ID"),
-                "notebook_id": anonymised_notebook_id,
-                "cluster_id": os.getenv("PAPERSPACE_CLUSTER_ID"),
-            }
+                notebook_metadata = {
+                    "notebook_path": notebook_path,
+                    "notebook_repo_id": os.getenv("PAPERSPACE_NOTEBOOK_REPO_ID"),
+                    "notebook_id": anonymised_notebook_id,
+                    "cluster_id": os.getenv("PAPERSPACE_CLUSTER_ID"),
+                }
 
-            for key, val in notebook_metadata.items():
-                cls.__update_payload(val, key)
+                for key, val in notebook_metadata.items():
+                    cls.__update_payload(val, key)
 
-            time.sleep(cls._POLLING_SECONDS)
+                time.sleep(cls._POLLING_SECONDS)
+
+        except:
+            pass
 
     @classmethod
     def __get_frameworks_versions(cls) -> str:
         """Get framework versions."""
 
-        while True:
-            if cls.LOG_STATE == "DISABLED":
-                return
+        try:
+            while True:
+                if cls.LOG_STATE == "DISABLED":
+                    return
 
-            try:
-                installed_packages = pkg_resources.working_set
-            except:
-                installed_packages = {}
+                try:
+                    installed_packages = pkg_resources.working_set
+                except:
+                    installed_packages = {}
 
-            # Query pip packages and versions for frameworks
-            all_pkgs = {i.key: i.version for i in installed_packages}
-            for fw in cls._FRAMEWORKS:
-                version = all_pkgs.get(fw, "..").split(".")
+                # Query pip packages and versions for frameworks
+                all_pkgs = {i.key: i.version for i in installed_packages}
+                for fw in cls._FRAMEWORKS:
+                    version = all_pkgs.get(fw, "..").split(".")
 
-                if fw == "poptorch-geometric":
-                    fw = "popgeometric"
+                    if fw == "poptorch-geometric":
+                        fw = "popgeometric"
 
-                cls.__update_payload(int(version[0]) if version[0] else 0, f"{fw}_version_major")
-                cls.__update_payload(int(version[1]) if version[0] else 0, f"{fw}_version_minor")
-                cls.__update_payload(version[2], f"{fw}_version_patch")
+                    cls.__update_payload(int(version[0]) if version[0] else 0, f"{fw}_version_major")
+                    cls.__update_payload(int(version[1]) if version[0] else 0, f"{fw}_version_minor")
+                    cls.__update_payload(version[2], f"{fw}_version_patch")
 
-            time.sleep(cls._POLLING_SECONDS)
+                time.sleep(cls._POLLING_SECONDS)
+
+        except:
+            pass
 
     # @classmethod
     # def __get_executables(cls) -> str:
