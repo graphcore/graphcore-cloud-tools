@@ -5,7 +5,7 @@ import os
 import yaml
 import logging
 import pathlib
-from metadata_utils import check_files_match_metadata
+from .metadata_utils import check_files_match_metadata
 from pathlib import Path
 from time import time
 
