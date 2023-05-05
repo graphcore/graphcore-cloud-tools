@@ -67,6 +67,8 @@ class GCLogger(object):
         "code_executed": "",
     }
 
+    _HF_KEY_LENGTH = 37
+
     def __new__(cls, ip):
         if cls._instance is None:
             cls._SHELL = ip
@@ -121,11 +123,6 @@ class GCLogger(object):
                 background_functions = [
                     cls.__get_notebook_metadata,
                     cls.__get_frameworks_versions,
-                    # TODO: Refine and reintroduce these
-                    # cls.__get_executables,
-                    # cls.__get_weights,
-                    # cls.__get_datasets,
-                    # cls.__get_compile_times,
                 ]
 
                 # Start multiprocess procs for all functions
@@ -222,161 +219,19 @@ class GCLogger(object):
         except:
             pass
 
-    # @classmethod
-    # def __get_executables(cls) -> str:
-    #     """Get popef file paths and metadata from wherever possible."""
+    @classmethod
+    def __remove_hf_keys(cls, raw_string: str) -> str:
+        """Detect and remove possible HF API keys from strings."""
 
-    #     # Get all .popef files name and size
-    #     cache_dirs = [
-    #         ipynbname.path().parents[1],  # Local
-    #         os.getenv("POPLAR_EXECUTABLE_CACHE_DIR"),  # HF default
-    #         os.getenv("POPTORCH_CACHE_DIR"),  # Possible for non-HF optimum runs
-    #     ]
-    #     popef_files = []
-    #     popef_file_dumps = {}
+        if cls.LOG_STATE == "DISABLED":
+            return
 
-    #     while True:
-    #         if cls.LOG_STATE == "DISABLED":
-    #             return
+        while "hf_" in raw_string:
+            key_start = raw_string.find("hf_")
+            key_end = key_start + cls._HF_KEY_LENGTH
+            raw_string = raw_string[:key_start] + "<HF_API_KEY>" + raw_string[key_end:]
 
-    #         for dir_path in cache_dirs:
-    #             if dir_path:
-    #                 popef_files.extend(Path(dir_path).glob("*.popef"))
-
-    #         # Analyse the popef file using gc CLI tool
-    #         for file in popef_files:
-    #             proc = subprocess.run(
-    #                 f"popef_dump -m {file}",
-    #                 stdout=subprocess.PIPE,
-    #                 stderr=subprocess.STDOUT,
-    #                 shell=True,
-    #                 text=True,
-    #             )
-
-    #             popef_file_dumps[str(file)] = proc.stdout
-
-    #         cls.__update_payload(popef_file_dumps, "popef_file_dumps")
-
-    #         time.sleep(cls._POLLING_SECONDS)
-
-    # @classmethod
-    # def __get_weights(cls) -> str:
-    #     """Get weights file paths and sizes from wherever possible."""
-
-    #     # Search for all weight files and poll size/name
-    #     weight_files = []
-    #     weights_extensions = ["onnx", "pt", "pb"]
-    #     cache_dirs = [
-    #         ipynbname.path().parents[1],  # Local
-    #         os.getenv("CHECKPOINT_DIR"),  # HF default
-    #         os.getenv("HUGGINGFACE_HUB_CACHE"),  # Another possible HF path?
-    #         os.getenv("TRANSFORMERS_CACHE"),  # Possible checkpoints here
-    #     ]
-
-    #     while True:
-    #         if cls.LOG_STATE == "DISABLED":
-    #             return
-
-    #         for dir_path in cache_dirs:
-    #             if dir_path:
-    #                 for ext in weights_extensions:
-    #                     weight_files.extend(Path(dir_path).glob(f"**/*.{ext}"))
-
-    #         weight_file_sizes = {}
-    #         for file in weight_files:
-    #             weight_file_sizes[str(file)] = file.stat().st_size
-
-    #         cls.__update_payload(weight_file_sizes, "weight_file_sizes")
-
-    #         time.sleep(cls._POLLING_SECONDS)
-
-    # @classmethod
-    # def __get_datasets(cls) -> str:
-    #     """Get dataset paths and sizes from wherever possible"""
-
-    #     # Get all possible dataset dirs
-    #     datasets = []
-    #     dataset_dirs = [
-    #         ipynbname.path().parents[1],  # Local
-    #         os.getenv("HF_DATASETS_CACHE"),  # HF default
-    #         os.getenv("PUBLIC_DATASETS_DIR"),  # Our default
-    #         os.getenv("DATASETS_DIR"),  # /tmp/ location
-    #     ]
-
-    #     while True:
-    #         if cls.LOG_STATE == "DISABLED":
-    #             return
-
-    #         for data_path in dataset_dirs:
-    #             datasets.extend(list(Path(data_path).iterdir()))
-
-    #         # Find sizes
-    #         dataset_sizes = ""
-    #         for folder in datasets:
-    #             proc = subprocess.run(
-    #                 ["du", "-sh", str(folder)],
-    #                 stdout=subprocess.PIPE,
-    #                 stderr=subprocess.STDOUT,
-    #                 shell=True,
-    #                 text=True,
-    #             )
-
-    #             dataset_sizes = str(proc.stdout).split("\t")[0]
-
-    #         cls.__update_payload(dataset_sizes, "dataset_sizes")
-
-    #         time.sleep(cls._POLLING_SECONDS)
-
-    # @classmethod
-    # def __get_compile_times(cls):
-    #     """Capture compile time from noteboook.py
-
-    #     Note: Because of how general this task is, it seems the best we can do
-    #     for now is capture all output that mentions 'compilation' etc. and sift
-    #     through the outputs later.
-
-    #     If we can get more specificity on how compilation happens, what we can
-    #     expect etc. (HF only, model.compile() explicit calls etc.) then we can
-    #     clean this up a lot and be more particular about what we collect.
-    #     """
-
-    #     while True:
-    #         if cls.LOG_STATE == "DISABLED":
-    #             return
-
-    #         with open(ipynbname.path()) as notebook:
-    #             raw_notebook = nbformat.read(notebook, nbformat.NO_CONVERT)
-
-    #         # Get all code cells, search for compile time
-    #         code_cells = [
-    #             (cell["source"], cell["outputs"]) for cell in raw_notebook["cells"] if cell["cell_type"] == "code"
-    #         ]
-
-    #         compilation_times = {}
-    #         for input, output in code_cells:
-    #             # Some cells have a seperate 'data' outputs. We need 'text' output
-    #             if len(output) > 1:
-    #                 output = output[1]
-
-    #             if output:
-    #                 try:
-    #                     text = output[0].get("text")
-
-    #                     # Assuming HF optimum pipeline output
-    #                     # Check NoneType first else substring search throws
-    #                     if text is not None and "Graph compilation: 100%" in text:
-    #                         compilation_times[input] = text
-
-    #                 # Suppress all outputs and continue
-    #                 except:
-    #                     pass
-
-    #         cls.__update_payload(
-    #             {datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"): json.dumps(compilation_times)},
-    #             "compilation_time_traces",
-    #         )
-
-    #         time.sleep(cls._POLLING_SECONDS)
+        return raw_string
 
     @classmethod
     def __sanitize_payload(cls, payload):
@@ -384,8 +239,12 @@ class GCLogger(object):
         if cls.LOG_STATE == "DISABLED":
             return
 
+        # Clean out any private keys, fix quotes
         for key, val in payload.items():
             if type(val) == str:
+                if key in ["error_trace", "cell_output", "code_executed"]:
+                    val = cls.__remove_hf_keys(val)
+
                 payload[key] = val.replace('"', "'")
 
         payload = json.dumps(payload, separators=(",", ":"))
@@ -444,20 +303,6 @@ class GCLogger(object):
         else:
             event_dict["event_type"] = "success"
             event_dict["error_trace"] = ""
-
-        # if "Graph compilation" in event_dict["cell_output"]:
-        #     event_dict["event_type"] = "Compilation attempt"
-
-        #     # Detect compile time from output
-        #     for line in event_dict["cell_output"].splitlines():
-        #         if "Graph compilation: 100%" in line:
-        #             compilation_time_string = re.search("(?<=\[)(.*?)(?=\])", line)
-        #             compilation_time_minutes = compilation_time_string.split("<")[0]
-        #             compilation_time_seconds = int(compilation_time_minutes[:2])*60 + int(compilation_time_minutes[3:])
-
-        #             event_dict["compilation_time_seconds"] = compilation_time_seconds
-        # else:
-        #     event_dict["compilation_time_seconds"] = 0
 
         cls.__firehose_put(event_dict)
 
