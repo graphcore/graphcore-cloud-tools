@@ -145,11 +145,11 @@ def run_and_monitor_progress(
                 except UnicodeDecodeError as e:
                     pass
 
-        (a, b) = proc.communicate()
-        outs[0].append(a.decode())
-        listener.write(a.decode())
-        outs[1].append(b.decode())
-        listener.write(b.decode())
+        out, err = proc.communicate()
+        outs[0].append(out.decode())
+        listener.write(out.decode())
+        outs[1].append(err.decode())
+        listener.write(err.decode())
         listener.flush()
 
     t = threading.Thread(target=proc_thread, name="proc_thread")
@@ -385,10 +385,10 @@ def run_benchmark_variant(
         err = f"Benchmark ERROR, exited with code: ({str(exitcode)}). Please check logs for more information."
         logger.error(err)
 
+        error_tail = "\n\t".join(stderr.splitlines()[-100:]) + "\n"
+        logger.error(f"Last 100 lines of stderr from {variant_name}:\n{error_tail}")
+
         if args.stop_on_error:
-            error_tail = "\n\t" + "\n\t".join(stderr.splitlines()[-10:]) + "\n"
-            logger.error(f"Last 10 lines of stderr from {variant_name}:{error_tail}")
-            sys.excepthook = lambda exctype, exc, traceback: print("{}: {}".format(exctype.__name__, exc))
             raise RuntimeError(err)
         else:
             logger.info("Continuing to next benchmark as `--stop-on-error` was not passed")
@@ -569,9 +569,7 @@ def run_benchmarks_from_spec(spec: Dict[str, BenchmarkDict], args: argparse.Name
     if args.custom_metrics_files is not None:
         import_metrics_hooks_files(args.custom_metrics_files)
     with open(output_log_path, "w", buffering=1) as listener:
-        print("#" * 80)
         logger.info(f"Logs at: {output_log_path}")
-        print("#" * 80 + "\n")
 
         # Only check explicitily listed benchmarks if provided
         if args.benchmark is None:
