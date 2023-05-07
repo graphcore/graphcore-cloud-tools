@@ -9,6 +9,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+import re
 from time import time
 import xml.etree.ElementTree as ET
 
@@ -102,28 +103,51 @@ def get_latest_checkpoint_path(checkpoint_root_dir: Path, variant_cmd: str) -> P
     # Look at each arg to see if it could be a checkpoint path
     checkpoint_dir = None
     for arg in cmd_args:
-        if "checkpoint-output-dir" in arg:
+        if any([variant in arg for variant in ("checkpoint-output-dir", "checkpoint_output_dir")]):
             checkpoint_dir = arg.replace("=", " ").split(" ")[1]
             checkpoint_dir = checkpoint_dir.replace('"', "").replace("'", "")
             break
 
     latest_checkpoint_path = None
+
+    # Resolve relative to the benchmarks.yml path
     if checkpoint_dir is not None:
-        # Resolve relative to the benchmarks.yml path
         checkpoint_dir = checkpoint_root_dir.joinpath(checkpoint_dir).resolve()
 
-        # Find all directories in checkpoint root dir
-        list_of_dirs = [x for x in checkpoint_dir.glob("**/*") if x.is_dir()]
+    if checkpoint_dir is not None and checkpoint_dir.exists():
+        # Assumption: checkpoint files are either 1) As files directly under
+        # checkpoint_dir, or, 2) all the files are within a subdirectory
+        # under checkpoint_dir. For case 1, a path to a directory is returned.
+        # For case 2, an absolute path to a checkpoint file is returned
 
-        # Sort list of files based on last modification time and take latest
-        time_sorted_dirs = sorted(list_of_dirs, key=os.path.getmtime, reverse=True)
+        # only support tensorflow and pytorch extensions for checkpoint files
+        checkpoint_extensions = re.compile(".+(pt|pth|h5)$")
 
-        try:
+        root_files = []
+        sub_dirs = []
+        for p in checkpoint_dir.iterdir():
+            if p.is_dir():
+                # some validation to check there is a supported ckpt file
+                if any([checkpoint_extensions.match(str(x)) for x in p.iterdir()]):
+                    sub_dirs.append(p)
+            elif checkpoint_extensions.match(str(p)):
+                root_files.append(p)
+
+        # case 1
+        if len(sub_dirs) > 0:
+            # Sort list of files based on last modification time and take latest
+            time_sorted_dirs = sorted(sub_dirs, key=os.path.getmtime, reverse=True)
             latest_checkpoint_path = time_sorted_dirs[0]
-        except:
+            logger.info(f"Checkpoint dir to be uploaded: {latest_checkpoint_path}")
+        elif len(root_files) > 0:
+            # case 2
+            time_sorted_files = sorted(root_files, key=os.path.getmtime, reverse=True)
+            latest_checkpoint_path = time_sorted_files[0]
+            logger.info(f"Checkpoints files to be uploaded: {latest_checkpoint_path}")
+        else:
             logger.warn(f"Checkpoint file(s) in {checkpoint_dir} could not be found. Skipping uploading")
-
-    logger.info(f"Checkpoints to be uploaded: {latest_checkpoint_path}")
+    else:
+        logger.warn(f"Checkpoint dir: {checkpoint_dir} does not exists. Skipping uploading")
 
     return latest_checkpoint_path
 
@@ -209,6 +233,7 @@ def upload_checkpoints(
     checkpoint_dir_depth: int,
     run_name: str,
     stderr: str,
+    force_upload: bool = False,
 ):
     """Upload checkpoints from model run to
 
@@ -218,11 +243,20 @@ def upload_checkpoints(
         benchmark_path (str): Path to the benchmark dir
         run_name (str): Name for this benchmarking run
         stderr (str): Stderr output from this benchmarking run
-
+        force_upload (bool): Upload without requesting user input
+    Returns:
+        upload_status (int): 1 if unsuccessful, 0 otherwise
     """
 
+    upload_status = 1
+
     # Get confirmation user wants to upload checkpoint (post results), else exit
-    upload_confirmed = input("Upload checkpoints? (y/n): ")
+    if force_upload:
+        upload_confirmed = "y"
+    else:
+        upload_confirmed = input("Upload checkpoints? (y/n): ")
+
+    # Get confirmation user wants to upload checkpoint (post results), else exit
     while upload_confirmed not in {"y", "n"}:
         upload_confirmed = input("Please enter either y (yes) or n (no): ")
 
@@ -230,7 +264,7 @@ def upload_checkpoints(
         logger.warn(
             f"Checkpoint uploading was refused by user input, skipping " f"uploading checkpoints at {checkpoint_path}"
         )
-        return
+        return upload_status
 
     checkpoint_path = str(checkpoint_path)
 
@@ -246,7 +280,10 @@ def upload_checkpoints(
             run = wandb.init(project=link_parts[-3], id=link_parts[-1], resume="allow")
 
             artifact = wandb.Artifact(name=run_name + "-checkpoint", type="model")
-            artifact.add_dir(checkpoint_path)
+            if Path(checkpoint_path).is_dir():
+                artifact.add_dir(checkpoint_path)
+            else:
+                artifact.add_file(checkpoint_path)
 
             run.log_artifact(artifact)
 
@@ -254,6 +291,7 @@ def upload_checkpoints(
             os.environ["WANDB_SILENT"] = "false"
 
             logger.info(f"Checkpoint at {checkpoint_path} successfully uploaded to wandb.")
+            upload_status = 0
         except Exception as e:
             logger.warn(f"Failed to upload checkpoint at {checkpoint_path} to wandb.")
             logger.warn(e)
@@ -277,6 +315,7 @@ def upload_checkpoints(
 
             if proc.returncode == 0:
                 logger.info(f"Checkpoint at {checkpoint_path} successfully uploaded to s3.")
+                upload_status = 0
 
         except Exception as e:
             logger.warn(f"Failed to upload checkpoint at {checkpoint_path} to s3.")
@@ -303,6 +342,8 @@ def upload_checkpoints(
                 "web browser etc."
             )
             logger.warn(msg)
+
+    return upload_status
 
 
 def upload_compile_time(wandb_link: str, results: dict):

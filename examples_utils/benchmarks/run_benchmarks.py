@@ -281,8 +281,8 @@ def run_benchmark_variant(
     variant_log_dir = Path(args.log_dir, variant_name)
     if not variant_log_dir.exists():
         variant_log_dir.mkdir(parents=True)
-    outlog_path = Path(variant_log_dir, "stdout.log")
-    errlog_path = Path(variant_log_dir, "stderr.log")
+    outlog_path = Path(variant_log_dir, "stdout")
+    errlog_path = Path(variant_log_dir, "stderr")
 
     # Infer examples, SDK and venv path for this benchmark
     args = infer_paths(args, benchmark_dict)
@@ -296,7 +296,7 @@ def run_benchmark_variant(
     # Check if poprun is being used
     poprun_config = get_poprun_config(args, cmd)
 
-    # only validate user supplied hosts if not submitting on SLURM
+    # Only validate user supplied hosts if not submitting on SLURM
     # Similarly, only install requirements if not submitting on SLURM
     if not args.submit_on_slurm:
         # Detect if benchmark requires instances running (not just compiling) on
@@ -348,7 +348,6 @@ def run_benchmark_variant(
         need_to_run = should_reattempt_benchmark(benchmark_dict, stdout, stderr, exitcode)
         if need_to_run:
             logger.info(f"Re-running benchmark because: {need_to_run}")
-
     end_time = datetime.now()
     total_runtime = (end_time - start_time).total_seconds()
     logger.info(f"End test: {end_time}")
@@ -436,6 +435,7 @@ def run_benchmark_variant(
 
     # Find checkpoints from this run
     checkpoint_root_dir = Path(benchmark_dict["benchmark_path"]).parent.joinpath(benchmark_dict.get("location", ""))
+
     latest_checkpoint_path = get_latest_checkpoint_path(checkpoint_root_dir, variant_command)
 
     # Upload checkpoints if required
@@ -473,7 +473,13 @@ def run_benchmark_variant(
         "test_duration": str(total_runtime),
         "exitcode": exitcode,
         "log_paths": {"out": str(outlog_path), "err": str(errlog_path)},
+        "latest_checkpoint_path": str(latest_checkpoint_path),
+        "sdk_path": str(args.sdk_path),
+        "sdk_version": args.sdk_version,
     }
+
+    if WANDB_AVAILABLE and wandb_link is not None:
+        variant_result["wandb_link"] = wandb_link
 
     # These failure points are not caught normally, check here
     possible_failure_points = [
@@ -795,13 +801,13 @@ def benchmarks_parser(parser: argparse.ArgumentParser):
         choices=["wandb", "s3"],
         help="List of locations to upload model checkpoints to",
     )
-
-    parser.add_argument("--submit-on-slurm", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--slurm-machine-type", choices=["any", "mk2", "mk2w"], default="any", help=argparse.SUPPRESS)
-
     parser.add_argument(
         "--progress-trace-period",
         default=1,
         type=int,
         help="Period between progress trace (in seconds)",
     )
+
+    parser.add_argument("--submit-on-slurm", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--slurm-machine-type", choices=["any", "mk2", "mk2w"], default="any", help=argparse.SUPPRESS)
+    parser.add_argument("--slurm-resource-reservation", type=str, default=None, help=argparse.SUPPRESS)

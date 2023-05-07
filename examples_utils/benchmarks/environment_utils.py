@@ -72,10 +72,6 @@ AWSCLI_VARS = {
     ),
 }
 
-SLURM_ENV_VARS = {
-    "SLURM_HOST_SUBNET_MASK": {"help": "Host subnet mask for all allocations from the SLURM queue.", "default": "ens5"}
-}
-
 
 def _check_cmd_for_missing_poprun_vars(benchmark_name: str, cmd: str):
     # Check if any of the poprun env vars are required but not set
@@ -121,15 +117,6 @@ def check_env(args: argparse.Namespace, benchmark_name: str, cmd: str):
     # if submitting on slurm, these environment variables are ignored
     if not args.submit_on_slurm:
         _check_cmd_for_missing_poprun_vars(benchmark_name, cmd)
-
-    if args.submit_on_slurm:
-        for k, v in SLURM_ENV_VARS.items():
-            if k not in os.environ:
-                warn_msg = f"{k}: {v['help']} has not been set. Falling back to the default value of: {v['default']}."
-                logger.warn(warn_msg)
-                os.environ[k] = v["default"]
-
-    # TODO: Investigate working of wandb and awscli on SLURM
 
     missing_env_vars = []
     # Check wandb variables if required
@@ -249,6 +236,7 @@ def infer_paths(args: argparse.Namespace, benchmark_dict: dict) -> argparse.Name
         raise EnvironmentError(err)
     else:
         args.sdk_path = str(Path(args.sdk_path).parent.resolve())
+        args.sdk_version = Path(args.sdk_path).name
 
     args.venv_path = os.getenv("VIRTUAL_ENV")
     if args.venv_path is None:

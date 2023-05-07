@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import atexit
 import logging
-from multiprocessing.sharedctypes import Value
 import os
 import subprocess
 import sys
@@ -12,7 +11,7 @@ import textwrap
 import time
 from datetime import timedelta
 from io import TextIOWrapper
-from typing import Tuple, Dict, Generator, Any
+from typing import Tuple, Dict, Any
 from pathlib import Path
 import shutil
 import shlex
@@ -89,12 +88,17 @@ def check_slurm_configured() -> bool:
 
 
 def configure_environment_variables(env: dict):
+
+    # These values are the same on all SLURM job hosts
+    env["RNIC_SUBNET_MASK"] = "10.5.0.0/16"
+    env["IPUOF_VIPU_API_HOST"] = "angelsfall-ctrl"
+    env["IPUOF_VIPU_API_PORT"] = "8090"
+
     # if the user has an activated virtualenv, remove it from the path
     # otherwise the path to the venv will persist on the allocated node
     # and will affect package resolution
     if "VIRTUAL_ENV" in env:
         env["PATH"] = ":".join([p for p in env["PATH"].split(":") if p != str(Path(env["VIRTUAL_ENV"]) / "bin")])
-
     return env
 
 
@@ -420,8 +424,6 @@ def configure_ipu_partition(poprun_config: dict, num_ipus: int) -> str:
     # this is currently not supported on the neverland SLURM queue but will be in the
     # the future
 
-    # IPUOF_VIPU_API_HOST & IPUOF_VIPU_API_PORT will be deduced by poprun
-    # on neverland this is guaranteed to be correct
     bash_script = textwrap.dedent(
         """
         export IPUOF_VIPU_API_PARTITION_ID=p${SLURM_JOB_ID}
@@ -447,7 +449,7 @@ def configure_ipu_partition(poprun_config: dict, num_ipus: int) -> str:
                 num_ilds = int(num_ilds)
             except ValueError:
                 raise ValueError("Poprun --num-ilds option must be of integral type")
-            if num_ilds > 1:
+            if num_ilds > 1 and num_ipus < 128:
                 logger.warning(
                     "The Slurm queue does not support augmenting the cluster specification. Forcing --num-ilds to 1."
                 )
@@ -458,7 +460,7 @@ def configure_ipu_partition(poprun_config: dict, num_ipus: int) -> str:
         bash_script += textwrap.dedent(
             f"""
             poprun --host=$SLURM_JOB_NODELIST --num-ilds {num_ilds} --num-instances={int(poprun_config.get("num_instances", 1))} \\
-                --vipu-allocation=$ALLOCATION  --host-subnet={os.environ['SLURM_HOST_SUBNET_MASK']} \\
+                --vipu-allocation=$ALLOCATION  --host-subnet=$RNIC_SUBNET_MASK \\
                 {"" + poprun_config["other_args"]} \\"""
         )
 
@@ -560,6 +562,7 @@ def configure_slurm_job(
 
     # SLURM helper scripts to submit jobs depending on the number of IPUs
     machine_type = {"any": "", "mk2": "c", "mk2w": "w"}[args.slurm_machine_type]
+
     if num_ipus <= 16:
         submission_script = f"runonpod16{machine_type}.sh"
     elif num_ipus <= 64:
@@ -571,6 +574,8 @@ def configure_slurm_job(
     else:
         err_msg = "Benchmark cannot utilise more than 256 IPUs."
         raise ValueError(err_msg)
+
+    env = configure_environment_variables(env)
 
     # construct job submission bash script
     bash_script = "#!/bin/bash"
@@ -596,8 +601,11 @@ def configure_slurm_job(
     stderr_log_path = str(variant_log_dir / "stderr")
 
     # pass --wait to sbatch so that we can obtain the return code from the submitted job
-    slurm_job_command = [
-        submission_script,
+    if args.slurm_resource_reservation is not None:
+        slurm_job_command = [submission_script, "--reservation", args.slurm_resource_reservation]
+    else:
+        slurm_job_command = [submission_script]
+    slurm_job_command += [
         "--wait",
         "--job-name",
         variant_name,
@@ -607,8 +615,6 @@ def configure_slurm_job(
         stdout_log_path,
         job_script_path,
     ]
-
-    env = configure_environment_variables(env)
 
     return {
         "cmd": slurm_job_command,
@@ -682,23 +688,27 @@ def run_and_monitor_progress_on_slurm(
     stdout_path = None
     stderr_path = None
 
-    #  poll until job has been submited every 1s
+    # poll until job has been submited every 1s
     while proc.poll() is None and (stdout_path is None or stderr_path is None):
-        if not job_submitted:
+        if job_submitted:
+            if Path(stdout_log_path).exists():
+                stdout_path = stdout_log_path
+            if Path(stderr_log_path).exists():
+                stderr_path = stderr_log_path
+        else:
             o = proc.stdout.readline().decode()
             if "Submitted" in o:
                 job_id = o.split()[-1]
                 job_submitted = True
                 logger.info(f"SLURM Job submitted. Job id: {job_id}. Job name: {job_name}")
-        else:
-            if Path(stdout_log_path).exists():
-                stdout_path = stdout_log_path
-            if Path(stderr_log_path).exists():
-                stderr_path = stderr_log_path
         time.sleep(1)
+
+    logger.info("Monitoring SLURM job")
 
     # something bad may have happened
     if proc.poll() is not None:
+        logger.info("Something unexpected occurred while monitoring SLURM job." " Attempting to extract logs.")
+
         exitcode = proc.returncode
         stdout_log = proc.stdout.read().decode()
         stderr_log = proc.stderr.read().decode()
@@ -710,10 +720,11 @@ def run_and_monitor_progress_on_slurm(
 
         # cannot pick up additional information from log outputs
         # if the files don't exist, otherwise go ahead
-        if stdout_log_path is None or stderr_log_path is None:
+        if Path(stdout_log_path).exists() and Path(stderr_log_path).exists():
+            stdout_path = stdout_log_path
+            stderr_path = stderr_log_path
+        else:
             return exitcode, stdout_log, stderr_log
-
-    logger.info("Monitoring SLURM job")
 
     total_time = 0
     timeout_error = False
