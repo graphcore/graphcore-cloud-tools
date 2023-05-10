@@ -6,7 +6,6 @@ To use import the check_files_match_metadata function:
 check_files_match_metadata(dataset_folder: str, compare_hash: bool)
 """
 
-from importlib.metadata import metadata
 from typing import NamedTuple, List
 from pathlib import Path
 import os
