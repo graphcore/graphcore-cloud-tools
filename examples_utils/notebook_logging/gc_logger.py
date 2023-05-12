@@ -16,7 +16,33 @@ from pathlib import Path
 
 
 class GCLogger(object):
-    """Tracks the times at which cells are executed"""
+    """
+    Singleton class for logging the Graphcore Jupyter notebook execution events.
+
+    Notes:
+        GCLogger is a notebook user behaviour logging module
+        developed to analyse user progression through notebooks as well as
+        other metadata/metrics of the notebooks themselves. The purpose of this
+        data collection is to use the analyses and inferences to improve a
+        notebook's functionality, clarity and usability, as well as the
+        overall user experience.
+
+    Attributes:
+        _instance (GCLogger): Singleton instance of the class.
+        _CREATION_TIME (datetime): Timestamp for instance creation.
+        LOG_STATE (str): The current logging state, either "ENABLED" or "DISABLED".
+        _TIER_TYPE (str): Tier type for the current environment.
+        _POLLING_SECONDS (int): Time interval (seconds) for polling events.
+        _MP_MANAGER (Manager): Multiprocessing manager for shared data structures.
+        _PAYLOAD (Manager.dict): Shared dictionary for payload data.
+        _CODE_CELLS (Manager.list): Shared list for storing code cells.
+        _PROC_LIST (list): List of processes.
+        _FIREHOSE_STREAM_NAME (str): Stream name for AWS Firehose.
+        _REGION (str): AWS region.
+        _FRAMEWORKS (list): List of major frameworks to track versions.
+        _COLUMN_TYPES (dict): Schema for the payload data.
+        _HF_KEY_LENGTH (int): Length of the keys to be removed.
+    """
 
     _instance = None
     _CREATION_TIME = datetime.now()
@@ -87,6 +113,15 @@ class GCLogger(object):
     _HF_KEY_LENGTH = 37
 
     def __new__(cls, ip):
+        """
+        Overridden method to ensure singleton behavior. Initializes the logger and starts background processes.
+
+        Args:
+            ip (InteractiveShell): The current IPython shell.
+
+        Returns:
+            GCLogger: Singleton instance of the class.
+        """
         if cls._instance is None:
             cls._SHELL = ip
             cls._instance = super(GCLogger, cls).__new__(cls)
@@ -155,11 +190,23 @@ class GCLogger(object):
         return cls._instance
 
     def __init__(self, ip):
+        """
+        Initializes the logger. This is deliberately left empty as the initialization is handled in __new__.
+
+        Args:
+            ip (InteractiveShell): The current IPython shell.
+        """
         return
 
     @classmethod
     def __update_payload(cls, output: str or int, name: str) -> str:
-        """Update the payload with empty types as backups."""
+        """
+        Updates the payload with empty types as backups.
+
+        Args:
+            output (str or int): Output data to be added to the payload.
+            name (str): Name of the data field in the payload.
+        """
 
         if cls.LOG_STATE == "DISABLED":
             return
@@ -172,7 +219,9 @@ class GCLogger(object):
 
     @classmethod
     def __store_initial_cell_states(cls):
-        """store the initial state of all cells in notebook."""
+        """
+        Stores the initial state of all cells in the notebook.
+        """
 
         if cls.LOG_STATE == "DISABLED":
             return
@@ -184,6 +233,7 @@ class GCLogger(object):
             # Get list of all code cells
             for cell in initial_state["cells"]:
                 if cell["cell_type"] == "code":
+                    # Store the current cell code string
                     cls._CODE_CELLS.append(cell["source"])
 
         except:
@@ -191,8 +241,13 @@ class GCLogger(object):
 
     @classmethod
     def __manual_termination_polling(cls):
-        """Report if exeuction termination event was some kill signal."""
+        """
+        Continuously polls for manual termination events.
+        """
 
+        # TODO: Fix this function, currently only runs once and will report the
+        # first cell termination. Need some way to repeat this for every cell
+        # and check.
         try:
             while True:
                 time.sleep(cls._POLLING_SECONDS)
@@ -201,7 +256,9 @@ class GCLogger(object):
 
     @classmethod
     def __get_notebook_metadata(cls):
-        """Get notebook metadata."""
+        """
+        Fetches and updates the payload with metadata about the current notebook.
+        """
 
         if cls.LOG_STATE == "DISABLED":
             return
@@ -235,7 +292,9 @@ class GCLogger(object):
 
     @classmethod
     def __get_frameworks_versions(cls) -> str:
-        """Get framework versions."""
+        """
+        Fetches the versions of major frameworks and updates the payload.
+        """
 
         if cls.LOG_STATE == "DISABLED":
             return
@@ -263,7 +322,15 @@ class GCLogger(object):
 
     @classmethod
     def __convert_time_from_string(cls, raw_string_time: str) -> int:
-        """Convert times from MM:SS string format to integer seconds"""
+        """
+        Converts time from string format (MM:SS) to integer seconds.
+
+        Args:
+            raw_string_time (str): Time in string format (MM:SS).
+
+        Returns:
+            int: Time in seconds.
+        """
 
         minutes = int(raw_string_time[:2])
         seconds = int(raw_string_time[3:])
@@ -272,7 +339,16 @@ class GCLogger(object):
 
     @classmethod
     def __get_compile_time(cls, cell_input: str, cell_output: str) -> int:
-        """Capture compile time from a cells inputs/outputs."""
+        """
+        Determines compile time from cell inputs and outputs.
+
+        Args:
+            cell_input (str): Input code of the cell.
+            cell_output (str): Output result of the cell.
+
+        Returns:
+            int: Compile time in seconds.
+        """
 
         if cls.LOG_STATE == "DISABLED":
             return
@@ -292,7 +368,16 @@ class GCLogger(object):
 
     @classmethod
     def __detect_logging_termination(cls, cell_input: str) -> int:
-        """Detect if GCL logging was terminated by user"""
+        """
+        Detects if GCLogger logging was terminated by the user.
+
+        Args:
+            cell_input (str): Input code of the cell.
+
+        Returns:
+            int: 1 if the unload command for this extension is found in
+                `cell_input`, else 0.
+        """
 
         if cls.LOG_STATE == "DISABLED":
             return
@@ -304,7 +389,16 @@ class GCLogger(object):
 
     @classmethod
     def __detect_cell_modification(cls, executed_code: str) -> int:
-        """Detect if the cell code has been modified before execution."""
+        """
+        Detects if a given code cell has been modified prior to execution.
+
+        Args:
+            executed_code (str): The code that was executed in the cell.
+
+        Returns:
+            int: Returns 0 if the executed code is found in the known code
+                cells; 1 otherwise.
+        """
 
         if cls.LOG_STATE == "DISABLED":
             return
@@ -324,7 +418,17 @@ class GCLogger(object):
 
     @classmethod
     def __remove_hf_keys(cls, raw_string: str) -> str:
-        """Detect and remove possible HF API keys from strings."""
+        """
+        Searches a given string for any possible Hugging Face API keys and replaces them.
+
+        Args:
+            raw_string (str): The input string potentially containing Hugging Face API
+                keys.
+
+        Returns:
+            str: The sanitized string with all found Hugging Face API keys replaced with
+                "<HF_API_KEY>".
+        """
 
         if cls.LOG_STATE == "DISABLED":
             return
@@ -338,6 +442,15 @@ class GCLogger(object):
 
     @classmethod
     def __sanitize_payload(cls, payload: dict) -> dict:
+        """
+        Cleans a given payload by removing private keys and fixing quotes.
+
+        Args:
+            payload (dict): The input payload to be sanitized.
+
+        Returns:
+            dict: The sanitized and encoded payload.
+        """
 
         if cls.LOG_STATE == "DISABLED":
             return
@@ -373,7 +486,12 @@ class GCLogger(object):
 
     @classmethod
     def pre_run_cell(cls, info):
-        """Runs just before any cell is run."""
+        """
+        This method is invoked before executing a cell in IPython.
+
+        Args:
+            info (dict): The event information.
+        """
 
         if cls.LOG_STATE == "DISABLED":
             return
@@ -382,7 +500,12 @@ class GCLogger(object):
 
     @classmethod
     def post_run_cell(cls, result):
-        """Runs just after any cell is run."""
+        """
+        This method is invoked after executing a cell in IPython.
+
+        Args:
+            result (ExecutionResult): The result of the cell execution.
+        """
 
         if cls.LOG_STATE == "DISABLED":
             return
@@ -423,7 +546,12 @@ class GCLogger(object):
 
 
 def load_ipython_extension(ip):
-    """Instructions for loading the extension."""
+    """
+    This function is used to load the extension into the IPython environment.
+
+    Args:
+        ip (InteractiveShell): An instance of the IPython InteractiveShell.
+    """
 
     global _gc_logger
     _gc_logger = GCLogger(ip)
@@ -433,7 +561,13 @@ def load_ipython_extension(ip):
 
 
 def unload_ipython_extension(ip):
-    """Instructions for unloading the extension."""
+    """
+    This function is used to unload the extension from the IPython environment.
+
+    Args:
+        ip (InteractiveShell): An instance of the IPython InteractiveShell.
+
+    """
 
     global _gc_logger
     _gc_logger.LOG_STATE = "DISABLED"
