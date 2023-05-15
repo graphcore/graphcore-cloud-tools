@@ -25,19 +25,15 @@ from any cell in the notebook.
 
 When you first import and generate a `GCLogger` object, the following disclaimer is displayed in the stdout of the cell in which the `%load_ext gc_logger` was run in the notebook:
 ```
-============================================================================================================================================
-Graphcore would like to collect information about the applications and code being run in this notebook, as well as the system it's being run 
-on to improve usability and support for future users. The information will be anonymised and sent to Graphcore 
+In order to improve usability and support for future users, Graphcore would like to collect information about the
+applications and code being run in this notebook. The following information will be anonymised before being sent to Graphcore:
 
-You can disable this at any time by running `%unload_ext gc_logger` from any cell.
+- User progression through the notebook
+- Notebook details: number of cells, code being run and the output of the cells
+- Environment details
 
-Unless logging is disabled, the following information will be collected:
-	- User progression through the notebook
-	- Notebook details: number of cells, code being run and the output of the cells
-	- ML application details: Model information, performance, hyperparameters, and compilation time
-	- Environment details
-	- System performance: IO, memory and host compute performance
-=============================================================================================================================================
+You can disable logging at any time by running `%unload_ext gc_logger` from any cell.
+
 ```
 
 ## Design notes
