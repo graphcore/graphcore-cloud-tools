@@ -5,6 +5,7 @@ from .parsing import *
 from .load_lib_utils import *
 from .benchmarks import *
 from .paperspace_utils import *
+from .sdk_version_hash import *
 
 from .benchmarks.custom_metrics import register_custom_metric
 
