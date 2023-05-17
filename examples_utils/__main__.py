@@ -8,6 +8,7 @@ from .benchmarks.run_benchmarks import benchmarks_parser, run_benchmarks
 from .benchmarks.logging_utils import configure_logger
 from .load_lib_utils.cli import load_lib_build_parser, load_lib_builder_run
 from .testing.test_copyright import copyright_argparser, test_copyrights
+from .paperspace_utils import paperspace_parser, run_paperspace
 
 try:
     from .benchmarks.requirements_utils import platform_parser, assess_platform
@@ -32,6 +33,10 @@ def main(raw_args):
     platform_assessment_subparser = subparsers.add_parser(
         "platform_assessment", description="Run applications benchmarks from arbitrary directories and platforms."
     )
+    paperspace_subparser = subparsers.add_parser(
+        "paperspace", description="Run paperspace scripts."
+    )
+    paperspace_parser(paperspace_subparser)
     if "jupyter" not in _MISSING_REQUIREMENTS:
         platform_parser(platform_assessment_subparser)
 
@@ -56,6 +61,8 @@ def main(raw_args):
         assess_platform(args)
     elif args.subparser == "test_copyright":
         test_copyrights(args.path, args.amend, args.exclude_json)
+    elif args.subparser == "paperspace":
+        run_paperspace(args)
     else:
         err = (
             "Please select from one of:"
@@ -63,6 +70,7 @@ def main(raw_args):
             "\n\t`benchmark`"
             "\n\t`platform_assessment`"
             "\n\t`test_copyright`"
+            "\n\t`paperspace`"
         )
         raise Exception(err)
 
