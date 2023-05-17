@@ -76,6 +76,7 @@ class GCLogger(object):
         "execution_end_time": "",
         "time_to_first_error_seconds": 0,
         "compile_time_seconds": 0,
+        "logger_uptime_seconds": 0,
         # Event metadata
         "event_type": "",
         "user_onetime_id": "",
@@ -160,10 +161,21 @@ class GCLogger(object):
                 # Prepare shared dict and populate with Nulls in schema format
                 cls._PAYLOAD.update(cls._COLUMN_TYPES)
 
-                # Create a short unique user ID
-                cls._UNIQUE_HASH = base64.urlsafe_b64encode(
-                    hashlib.md5(cls._CREATION_TIME.strftime("%Y-%m-%d %H:%M:%S.%f").encode("utf-8")).digest()
-                ).decode("ascii")[:12]
+                # Find existing user ID, or create one
+                userid_file = Path("/storage/.graphcore/generated_user_id").resolve()
+                userid_file.parent.mkdir(parents=True, exist_ok=True)
+                if userid_file.exists():
+                    with open(userid_file, "r") as file:
+                        cls._UNIQUE_HASH = file.readline()
+                else:
+                    cls._UNIQUE_HASH = base64.urlsafe_b64encode(
+                        hashlib.md5(cls._CREATION_TIME.strftime("%Y-%m-%d %H:%M:%S.%f").encode("utf-8")).digest()
+                    ).decode("ascii")[:12]
+
+                    # Store this for next time the same user starts a notebook
+                    with open(userid_file, "w") as file:
+                        file.write(cls._UNIQUE_HASH)
+
                 cls._PAYLOAD["user_onetime_id"] = cls._UNIQUE_HASH
 
                 # Convert data collection into repeated polling with update checking
@@ -349,6 +361,7 @@ class GCLogger(object):
             return
 
         # Whether any compil/e/ation happened or not
+        compile_time = 0
         if not "compil" in cell_input + cell_output:
             # Covers most HF, PyG and Pytorch cases
             if "Graph compilation: 100%" in cell_output:
@@ -356,8 +369,6 @@ class GCLogger(object):
                 end_index = cell_output.find("00:00]")
                 compile_time_raw = cell_output[start_index:end_index][-6:-1]
                 compile_time = cls.__convert_time_from_string(compile_time_raw)
-            else:
-                compile_time = 0
 
         return compile_time
 
@@ -511,6 +522,7 @@ class GCLogger(object):
         event_dict["execution_end_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         event_dict["code_executed"] = str(result.info.raw_cell)
         event_dict["cell_output"] = str(result.result)
+        event_dict["logger_uptime_seconds"] = int((datetime.now() - cls._CREATION_TIME).total_seconds())
 
         # Get compile time if available
         event_dict["compile_time_seconds"] = cls.__get_compile_time(
@@ -525,7 +537,7 @@ class GCLogger(object):
         if result.error_before_exec or result.error_in_exec:
             # Only get this value once
             if cls._PAYLOAD["time_to_first_error_seconds"] == 0:
-                cls._PAYLOAD["time_to_first_error_seconds"] = int((datetime.now() - cls._CREATION_TIME).total_seconds())
+                cls._PAYLOAD["time_to_first_error_seconds"] = event_dict["logger_uptime_seconds"]
 
             event_dict["event_type"] = "error"
             event_dict["error_trace"] = (
