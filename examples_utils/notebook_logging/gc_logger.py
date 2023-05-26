@@ -360,14 +360,21 @@ class GCLogger(object):
         if cls.LOG_STATE == "DISABLED":
             return
 
+        # Early exit if no input or output from cell scraper function
+        if cell_input is None and cell_output is None:
+            return 0
+
+        cell_input_string = str(cell_input)
+        cell_output_string = str(cell_output)
+
         # Whether any compil/e/ation happened or not
         compile_time = 0
-        if not "compil" in cell_input + cell_output:
+        if "compil" in cell_input_string + cell_output_string:
             # Covers most HF, PyG and Pytorch cases
-            if "Graph compilation: 100%" in cell_output:
-                start_index = cell_output.find("Graph compilation: 100%")
-                end_index = cell_output.find("00:00]")
-                compile_time_raw = cell_output[start_index:end_index][-6:-1]
+            if "Graph compilation: 100%" in cell_output_string:
+                start_index = cell_output_string.find("Graph compilation: 100%")
+                end_index = cell_output_string.find("00:00]")
+                compile_time_raw = cell_output_string[start_index:end_index][-6:-1]
                 compile_time = cls.__convert_time_from_string(compile_time_raw)
 
         return compile_time
@@ -428,12 +435,12 @@ class GCLogger(object):
         Searches a given string for any possible Hugging Face API keys and replaces them.
 
         Args:
-            raw_string (str): The input string potentially containing Hugging Face API
-                keys.
+            raw_string (str): Input strings potentially containing Hugging Face
+                API keys.
 
         Returns:
-            str: The sanitized string with all found Hugging Face API keys replaced with
-                "<HF_API_KEY>".
+            str: The sanitized string with all found Hugging Face API keys
+                replaced with "<HF_API_KEY>".
         """
 
         if cls.LOG_STATE == "DISABLED":
@@ -461,13 +468,21 @@ class GCLogger(object):
         if cls.LOG_STATE == "DISABLED":
             return
 
-        # Clean out any private keys, fix quotes
-        for key, val in payload.items():
-            if (val is not None) and (type(val) == str):
-                if key in ["error_trace", "cell_output", "code_executed"]:
-                    val = cls.__remove_hf_keys(val)
+        # Clean out any private keys, fix quotes, remove None or empty fields
+        for key, val in payload.copy().items():
+            if val is not None:
+                if isinstance(val, str):
+                    if key in ["error_trace", "cell_output", "code_executed"]:
+                        payload[key] = cls.__remove_hf_keys(val)
 
-                payload[key] = val.replace('"', "'")
+                    if val == "":
+                        payload.pop(key)
+                        continue
+
+                    payload[key].replace('"', "'")
+
+            else:
+                payload.pop(key)
 
         payload = json.dumps(payload, separators=(",", ":"))
         payload = payload.encode("utf-8")
@@ -520,8 +535,10 @@ class GCLogger(object):
 
         # Common values to all events
         event_dict["execution_end_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-        event_dict["code_executed"] = str(result.info.raw_cell)
-        event_dict["cell_output"] = str(result.result)
+        event_dict["code_executed"] = (
+            str(result.info.raw_cell).replace("\n", "") if result.info.raw_cell is not None else None
+        )
+        event_dict["cell_output"] = str(result.result).replace("\n", "") if result.result is not None else None
         event_dict["logger_uptime_seconds"] = int((datetime.now() - cls._CREATION_TIME).total_seconds())
 
         # Get compile time if available
@@ -540,9 +557,15 @@ class GCLogger(object):
                 cls._PAYLOAD["time_to_first_error_seconds"] = event_dict["logger_uptime_seconds"]
 
             event_dict["event_type"] = "error"
-            event_dict["error_trace"] = (
-                str(result.error_before_exec) if result.error_before_exec else str(result.error_in_exec)
-            )
+
+            # Get the stderr in the correct order
+            if result.error_before_exec is not None:
+                event_dict["error_trace"] = str(result.error_before_exec).replace("\n", "")
+            elif result.error_in_exec is not None:
+                event_dict["error_trace"] = str(result.error_in_exec).replace("\n", "")
+            else:
+                event_dict["error_trace"] = None
+
         else:
             event_dict["event_type"] = "success"
             event_dict["error_trace"] = ""
