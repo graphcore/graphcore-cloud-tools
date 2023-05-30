@@ -218,7 +218,7 @@ def save_results(log_dir: str, additional_metrics: bool, results: dict, extra_cs
         for r in result:
             tc = ET.SubElement(ts, "testcase")
             tc.set("name", benchmark)
-            if r["results"]["result"]["result"] != "True":
+            if r["exitcode"] != 0:
                 ET.SubElement(tc, "failure")
 
     junit_filepath = Path(log_dir, "benchmark_results.xml")
