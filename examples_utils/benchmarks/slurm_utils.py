@@ -74,7 +74,11 @@ class StringFileEmulator:
 
 def check_slurm_configured() -> bool:
     proc = subprocess.run(
-        "sinfo; sinfo | grep neverland", stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ, shell=True
+        "sinfo; sinfo | grep neverland",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=os.environ,
+        shell=True,
     )
     if proc.returncode != 0:
         err_msg = (
@@ -88,7 +92,6 @@ def check_slurm_configured() -> bool:
 
 
 def configure_environment_variables(env: dict):
-
     # These values are the same on all SLURM job hosts
     env["RNIC_SUBNET_MASK"] = "10.5.0.0/16"
     env["IPUOF_VIPU_API_HOST"] = "angelsfall-ctrl"
@@ -132,7 +135,10 @@ def configure_python_command(cmd: list) -> str:
 
 
 def configure_job_environment(
-    args: argparse.ArgumentParser, variant_dict: Dict, variant_name: str, variant_log_dir: str
+    args: argparse.ArgumentParser,
+    variant_dict: Dict,
+    variant_name: str,
+    variant_log_dir: str,
 ) -> str:
     """Add instruction to bash job script to:
     1. Activate poplar SDK
@@ -440,7 +446,6 @@ def configure_ipu_partition(poprun_config: dict, num_ipus: int) -> str:
         """
         )
     else:
-
         num_ilds = poprun_config["num_ilds"]
         if num_ilds is None:
             num_ilds = 1
@@ -459,9 +464,13 @@ def configure_ipu_partition(poprun_config: dict, num_ipus: int) -> str:
         # make sure no whitespace is trailing after \\, otherwise multline commands will fail
         bash_script += textwrap.dedent(
             f"""
-            poprun --host=$SLURM_JOB_NODELIST --num-ilds {num_ilds} --num-instances={int(poprun_config.get("num_instances", 1))} \\
-                --vipu-allocation=$ALLOCATION  --host-subnet=$RNIC_SUBNET_MASK \\
-                {"" + poprun_config["other_args"]} \\"""
+            poprun \\
+                --host=$SLURM_JOB_NODELIST \\
+                --num-ilds {num_ilds} \\
+                --num-instances={int(poprun_config.get("num_instances", 1))} \\
+                --vipu-allocation=$ALLOCATION  \\
+                --mpi-global-args="--mca oob_tcp_if_include $RNIC_SUBNET_MASK --mca btl_tcp_if_include $RNIC_SUBNET_MASK" \\
+                {poprun_config["other_args"]} \\"""
         )
 
     return bash_script
@@ -485,7 +494,6 @@ def configure_datasets(cmd, poprun_config) -> str:
     if len(rsync_dirs) == 0:
         return "", cmd
     else:
-
         bash_script = textwrap.dedent(
             """
             echo "[INFO] rsyncing datasets to a local destination"
@@ -589,7 +597,7 @@ def configure_slurm_job(
     bash_script += configure_python_command(cmd)
 
     # output job submission script to variant logging dir
-    job_script_path = variant_log_dir / "submit.sh"
+    job_script_path = str(variant_log_dir / "submit.sh")
 
     with open(job_script_path, "w") as script_handle:
         script_handle.write(bash_script)
@@ -602,7 +610,11 @@ def configure_slurm_job(
 
     # pass --wait to sbatch so that we can obtain the return code from the submitted job
     if args.slurm_resource_reservation is not None:
-        slurm_job_command = [submission_script, "--reservation", args.slurm_resource_reservation]
+        slurm_job_command = [
+            submission_script,
+            "--reservation",
+            args.slurm_resource_reservation,
+        ]
     else:
         slurm_job_command = [submission_script]
     slurm_job_command += [
@@ -637,7 +649,10 @@ def kill_slurm_job(proc: subprocess.Popen, job_name: str) -> None:
     proc.kill()
     logger.warning("SLURM job launching process exited abnormally." f" Killing job with job name: {job_name}")
     proc = subprocess.run(
-        ["scancel", "--jobname", job_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ
+        ["scancel", "--jobname", job_name],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=os.environ,
     )
     if proc.returncode != 0:
         raise SlurmBenchmarkError(
@@ -679,7 +694,15 @@ def run_and_monitor_progress_on_slurm(
 
     logger.info("Submitting SLURM job")
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=80, env=env, **kwargs)
+    logger.info(f"SLURM Job submission command: {' '.join(cmd)}")
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        bufsize=80,
+        env=env,
+        **kwargs,
+    )
 
     # make sure job is killed if the current thread is interrupted or exists unexpectedly
     atexit.register(kill_slurm_job, proc, job_name)
@@ -732,7 +755,6 @@ def run_and_monitor_progress_on_slurm(
     # read stdout and stderr every 1s while the process is still active
     with open(stdout_path, "rb", 80) as stdout, open(stderr_path, "rb", 80) as stderr:
         while proc.poll() is None:
-
             stdout_data = stdout.read().decode()
             if stdout_data != "":
                 listener.write(stdout_data)
