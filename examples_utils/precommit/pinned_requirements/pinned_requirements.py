@@ -93,7 +93,7 @@ def invalid_requirements(filename: str, fix_it: bool) -> bool:
     if f:
         print(f"Unpinned requirements found in file {filename}")
 
-    if fix_it:
+    if fix_it and f:
         print(f"  Attempting to fix...")
         try_write_fixed_requirements(reqs, f, filename)
 
