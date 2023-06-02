@@ -1,4 +1,11 @@
 #!/bin/bash
-python3 -m pip install -r requirements-precommit.txt
-python3 -m examples_utils.precommit.pinned_requirements.pinned_requirements $@
+
+pushd $(dirname $0)/../../../ > /dev/null
+
+python3 -m pip install -r requirements.txt > /dev/null
+python3 -m pip install -r requirements-precommit.txt > /dev/null
+
+MODULE_ROOT=$(pwd)
+popd > /dev/null
+PYTHONPATH=$PYTHONPATH:$MODULE_ROOT python3 -m examples_utils.precommit.pinned_requirements.pinned_requirements $@
 exit $?
