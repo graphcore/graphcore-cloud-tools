@@ -48,8 +48,9 @@ extra_requires = {
     "dev": read_requirements("requirements-dev.txt"),
     "jupyter": read_requirements("requirements-jupyter.txt") + read_requirements("requirements-common.txt"),
     "common": read_requirements("requirements-common.txt"),
+    "precommit": read_requirements("requirements-precommit.txt"),
 }
-extra_requires["all"] = extra_requires["dev"] + extra_requires["jupyter"]
+extra_requires["all"] = extra_requires["dev"] + extra_requires["jupyter"] + extra_requires["precommit"]
 
 setup(
     name="examples-utils",

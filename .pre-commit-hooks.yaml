@@ -1,0 +1,6 @@
+- id: pinned-requirements
+  name: Pinned Requirements
+  description: Checks that all requirements files have been pinned. Has to be run as a system hook to allow reading local deps
+  entry: bash examples_utils/precommit/pinned_requirements/entrypoint.sh
+  language: system
+  files: 'requirements*.txt'

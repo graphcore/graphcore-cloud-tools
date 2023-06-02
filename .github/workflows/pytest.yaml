@@ -24,6 +24,7 @@ jobs:
           pip install -r requirements-dev.txt
           pip install -r requirements-jupyter.txt
           pip install -r requirements-common.txt
+          pip install -r requirements-precommit.txt
           : #Install virtualenv outside of requirements file to avoid installing on local machines
           pip install virtualenv
 

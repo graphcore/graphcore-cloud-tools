@@ -39,6 +39,12 @@ The `benchmarking` sub-package is used for running the benchmarks that are provi
 
 The Graphcore logger for notebooks, `GCLogger`, is an IPython extension module that tracks user behaviour within the Jupyter notebooks we provide via Paperspace. For more information, refer to the [notebook logging README](https://github.com/graphcore/examples-utils/blob/master/examples_utils/notebook_logging/README.md)
 
+## Pre-Commit Hooks
+
+```console
+python -m pip install "examples-utils[precommit] @ https://github.com/graphcore/examples-utils.git"
+```
+
 ## Development
 
 * Reformat code to the repo standard with `make lint`
