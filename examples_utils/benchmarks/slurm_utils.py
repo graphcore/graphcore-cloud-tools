@@ -16,7 +16,7 @@ from pathlib import Path
 import shutil
 import shlex
 
-from examples_utils.benchmarks.command_utils import get_num_ipus, query_option_in_cmd
+from examples_utils.benchmarks.command_utils import get_num_ipus, query_option_in_cmd, determine_variant_timeout
 
 # Get the module logger
 logger = logging.getLogger(__name__)
@@ -628,12 +628,14 @@ def configure_slurm_job(
         job_script_path,
     ]
 
+    variant_timeout = determine_variant_timeout(args.timeout, benchmark_dict)
+
     return {
         "cmd": slurm_job_command,
         "stdout_log_path": stdout_log_path,
         "stderr_log_path": stderr_log_path,
         "job_name": variant_name,
-        "timeout": args.timeout,
+        "timeout": variant_timeout,
         "env": env,
     }
 

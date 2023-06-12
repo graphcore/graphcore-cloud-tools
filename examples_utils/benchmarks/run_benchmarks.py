@@ -15,11 +15,13 @@ from typing import Tuple, Union, Dict, List
 import yaml
 import json
 import time
+import psutil
 from examples_utils.benchmarks.command_utils import (
     formulate_benchmark_command,
     get_benchmark_variants,
     get_local_poprun_hosts,
     get_poprun_config,
+    determine_variant_timeout,
 )
 from examples_utils.benchmarks.distributed_utils import remove_distributed_filesystems, setup_distributed_filesystems
 from examples_utils.benchmarks.environment_utils import (
@@ -122,6 +124,14 @@ def run_and_monitor_progress(
     outs = [[], []]
     ipu_monitoring: List[str] = []
 
+    def kill_process(proc_pid: int):
+        process = psutil.Process(proc_pid)
+        for proc in process.children(recursive=True):
+            logger.info("Killing child process %s" % proc.pid)
+            proc.kill()
+        logger.info("Killing process %s" % proc_pid)
+        process.kill()
+
     def proc_thread():
         sel = selectors.DefaultSelector()
         sel.register(proc.stdout, selectors.EVENT_READ)
@@ -189,7 +199,7 @@ def run_and_monitor_progress(
         if timeout is not None and elapsed_time >= timeout:
             logger.error("TIMEOUT")
             timeout_error = True
-            proc.kill()
+            kill_process(proc.pid)
 
         if curr_time > next_trace_time:
             next_trace_time = curr_time + trace_period
@@ -336,10 +346,11 @@ def run_benchmark_variant(
         if args.submit_on_slurm:
             stdout, stderr, exitcode = run_and_monitor_progress_on_slurm(listener=listener, **slurm_config)
         else:
+            variant_timeout = determine_variant_timeout(args.timeout, benchmark_dict)
             stdout, stderr, exitcode, monitor_log = run_and_monitor_progress(
                 cmd,
                 listener,
-                args.timeout,
+                variant_timeout,
                 trace_period=args.progress_trace_period,
                 monitor_ipus=args.gc_monitor,
                 cwd=cwd,
