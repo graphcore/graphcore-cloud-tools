@@ -14,14 +14,14 @@ python -m examples_utils --help
 The `examples-utils` package can be installed from source via pip:
 
 ```console
-python -m pip install https://github.com/graphcore/examples-utils.git
+python -m pip install git+https://github.com/graphcore/examples-utils.git
 ```
 
 By default, this will only install a minimal set of requirements. To benchmark notebooks you must
 install the "jupyter" set of requirements:
 
 ```console
-python -m pip install "examples-utils[jupyer] @ https://github.com/graphcore/examples-utils.git"
+python -m pip install "examples-utils[jupyter] @ git+https://github.com/graphcore/examples-utils.git"
 ```
 
 The [`latest_stable`](https://github.com/graphcore/examples-utils/releases/tag/latest_stable) tag refers to a commit that is tested and should be reliable, but also updates automatically as fixes and features are added. You can use this by adding: 
