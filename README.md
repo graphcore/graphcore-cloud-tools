@@ -27,7 +27,7 @@ python -m pip install "examples-utils[jupyter] @ git+https://github.com/graphcor
 The [`latest_stable`](https://github.com/graphcore/examples-utils/releases/tag/latest_stable) tag refers to a commit that is tested and should be reliable, but also updates automatically as fixes and features are added. You can use this by adding: 
 
 ```console
-examples-utils[common] @ git+https://github.com/graphcore/examples-utils@latest_stable
+examples-utils @ git+https://github.com/graphcore/examples-utils@latest_stable
 ```
 to your requirements.txt file
 
