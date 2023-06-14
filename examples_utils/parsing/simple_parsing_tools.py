@@ -8,11 +8,17 @@ from dataclasses import dataclass, fields
 
 import argparse
 
-from simple_parsing import ArgumentParser
-from simple_parsing.helpers import Serializable, field
-from simple_parsing.helpers.serialization.decoding import register_decoding_fn
-from simple_parsing.helpers.serialization.encoding import encode
-from simple_parsing.utils import Dataclass, DataclassType
+try:
+    from simple_parsing import ArgumentParser
+    from simple_parsing.helpers import Serializable, field
+    from simple_parsing.helpers.serialization.decoding import register_decoding_fn
+    from simple_parsing.helpers.serialization.encoding import encode
+    from simple_parsing.utils import Dataclass, DataclassType
+except (ImportError, ModuleNotFoundError) as error:
+    raise ModuleNotFoundError(
+        "To use simple parsing utilities has not been installed correctly. "
+        "Please run `pip install 'simple-parsing==0.0.19.post1'"
+    ) from error
 
 
 @dataclass
