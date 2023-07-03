@@ -6,13 +6,13 @@ import sys
 import re
 import json
 
-from examples_utils.benchmarks import custom_metrics
-from examples_utils.testing import test_commands
+from graphcore_cloud_tools.benchmarks import custom_metrics
+from graphcore_cloud_tools.testing import test_commands
 
 EXPECTED_METRIC_HOOK_NAME = "log_lengths"
 
 CUSTOM_METRIC_FILE = f"""
-from examples_utils import register_custom_metric
+from graphcore_cloud_tools import register_custom_metric
 
 # Arbitrary metric function it must have a similar signature
 def log_lengths(stdout: str, stderr: str, exitcode: int):
@@ -21,7 +21,7 @@ def log_lengths(stdout: str, stderr: str, exitcode: int):
     return dict(stdout=len(stdout.splitlines()), stderr=len(stderr.splitlines()))
 
 
-# Call this function to declare the metric to examples utils
+# Call this function to declare the metric to graphcore cloud tools
 # it will appear in the final results directory under the name
 # passed as a first argument.
 register_custom_metric("{EXPECTED_METRIC_HOOK_NAME}", log_lengths)
@@ -88,7 +88,7 @@ test_custom_metric:
         [
             sys.executable,
             "-m",
-            "examples_utils",
+            "graphcore_cloud_tools",
             "benchmark",
             "--spec",
             str(yaml_file),

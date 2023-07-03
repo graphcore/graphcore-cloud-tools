@@ -24,7 +24,7 @@ The script is unable to auto-fix repository-based requirements.
 
 ```yaml
 repos:
-  - repo: git@github.com:graphcore/examples-utils.git
+  - repo: git@github.com:graphcore/graphcore-cloud-tools.git
     hooks:
       - id: pinned-requirements
         name: Pinned Requirements

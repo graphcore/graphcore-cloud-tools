@@ -7,8 +7,8 @@ import pytest
 import argparse
 import yaml
 import subprocess
-from examples_utils.benchmarks import environment_utils
-from examples_utils.testing import test_commands
+from graphcore_cloud_tools.benchmarks import environment_utils
+from graphcore_cloud_tools.testing import test_commands
 
 cwd = pathlib.Path.cwd()
 
@@ -119,27 +119,27 @@ class TestTimeout:
     # global timeout 3s, variant timeout 2s -> should timeout in 2s
     def test_variant_timeout_smaller(self, setup_test_timeout):
         yaml_config = setup_test_timeout
-        cmd = f"python3 -m examples_utils benchmark --spec {yaml_config} --benchmark timeout_variant --timeout 3"
+        cmd = f"python3 -m graphcore_cloud_tools benchmark --spec {yaml_config} --benchmark timeout_variant --timeout 3"
         result = subprocess.run(cmd.split(), capture_output=True, text=True)
         assert "Timeout (2)" in result.stderr
 
     # global timeout 1s, variant timeout 2s -> should timeout in 1s
     def test_variant_timeout_larger(self, setup_test_timeout):
         yaml_config = setup_test_timeout
-        cmd = f"python3 -m examples_utils benchmark --spec {yaml_config} --benchmark timeout_variant --timeout 1"
+        cmd = f"python3 -m graphcore_cloud_tools benchmark --spec {yaml_config} --benchmark timeout_variant --timeout 1"
         result = subprocess.run(cmd.split(), capture_output=True, text=True)
         assert "Timeout (1)" in result.stderr
 
     # no global timeout, variant timeout 2s -> should timeout in 2s
     def test_only_variant_timeout(self, setup_test_timeout):
         yaml_config = setup_test_timeout
-        cmd = f"python3 -m examples_utils benchmark --spec {yaml_config} --benchmark timeout_variant"
+        cmd = f"python3 -m graphcore_cloud_tools benchmark --spec {yaml_config} --benchmark timeout_variant"
         result = subprocess.run(cmd.split(), capture_output=True, text=True)
         assert "Timeout (2)" in result.stderr
 
     # global timeout 2s, no variant timeout -> should timeout in 2s
     def test_only_global_timeout(self, setup_test_timeout):
         yaml_config = setup_test_timeout
-        cmd = f"python3 -m examples_utils benchmark --spec {yaml_config} --benchmark no_timeout_variant --timeout 2"
+        cmd = f"python3 -m graphcore_cloud_tools benchmark --spec {yaml_config} --benchmark no_timeout_variant --timeout 2"
         result = subprocess.run(cmd.split(), capture_output=True, text=True)
         assert "Timeout (2)" in result.stderr

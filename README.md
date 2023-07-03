@@ -1,48 +1,37 @@
-# examples-utils
-Utils and common code for Graphcore's example applications.
+# graphcore-cloud-tools
+Various common tools and utils for Grpahcore's cloud services.
 
 ## Command line interface
 
 The package includes some command line interface (CLI) utils. For more details, refer to the CLI help:
 
 ```console
-python -m examples_utils --help
+python -m graphcore_cloud_tools --help
 ```
 
 ## Installation
 
-The `examples-utils` package can be installed from source via pip:
+The `graphcore-cloud-tools` package can be installed from source via pip:
 
 ```console
-python -m pip install git+https://github.com/graphcore/examples-utils.git
+python -m pip install git+https://github.com/graphcore/graphcore-cloud-tools.git
 ```
 
 By default, this will only install a minimal set of requirements. To benchmark notebooks you must
 install the "jupyter" set of requirements:
 
 ```console
-python -m pip install "examples-utils[jupyter] @ git+https://github.com/graphcore/examples-utils.git"
+python -m pip install "graphcore-cloud-tools[jupyter] @ git+https://github.com/graphcore/graphcore-cloud-tools.git"
 ```
-
-The [`latest_stable`](https://github.com/graphcore/examples-utils/releases/tag/latest_stable) tag refers to a commit that is tested and should be reliable, but also updates automatically as fixes and features are added. You can use this by adding: 
-
-```console
-examples-utils @ git+https://github.com/graphcore/examples-utils@latest_stable
-```
-to your requirements.txt file
-
-## Benchmarking
-
-The `benchmarking` sub-package is used for running the benchmarks that are provided with example applications in the [examples](https://github.com/graphcore/examples) repository. For more information, refer to the [benchmarks README](https://github.com/graphcore/examples-utils/blob/master/examples_utils/benchmarks/README.md).
 
 ## Notebook logging
 
-The Graphcore logger for notebooks, `GCLogger`, is an IPython extension module that tracks user behaviour within the Jupyter notebooks we provide via Paperspace. For more information, refer to the [notebook logging README](https://github.com/graphcore/examples-utils/blob/master/examples_utils/notebook_logging/README.md)
+The Graphcore logger for notebooks, `GCLogger`, is an IPython extension module that tracks user behaviour within the Jupyter notebooks we provide via Paperspace. For more information, refer to the [notebook logging README](https://github.com/graphcore/graphcore-cloud-tools/blob/master/graphcore_cloud_tools/notebook_logging/README.md)
 
 ## Pre-Commit Hooks
 
 ```console
-python -m pip install "examples-utils[precommit] @ https://github.com/graphcore/examples-utils.git"
+python -m pip install "graphcore-cloud-tools[precommit] @ https://github.com/graphcore/graphcore-cloud-tools.git"
 ```
 
 ## Development

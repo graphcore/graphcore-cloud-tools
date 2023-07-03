@@ -13,8 +13,8 @@ import pytest
 import os
 from multiprocessing import Process
 
-from examples_utils import load_lib
-from examples_utils.load_lib_utils.load_lib_utils import get_module_data, load_lib_all
+from graphcore_cloud_tools import load_lib
+from graphcore_cloud_tools.load_lib_utils.load_lib_utils import get_module_data, load_lib_all
 
 cpp_code_pybind = """// cppimport
 #include <pybind11/pybind11.h>
@@ -111,9 +111,9 @@ def test_load_lib_sdk_change():
         binary_hash = md5_file_hash(binary_path)
 
         # Test loading again when sdk has changed (monkey patch `sdk_version_hash` function)
-        with patch("examples_utils.sdk_version_hash.sdk_version_hash", new=lambda: "patch-version"):
+        with patch("graphcore_cloud_tools.sdk_version_hash.sdk_version_hash", new=lambda: "patch-version"):
             # Check patch
-            from examples_utils.sdk_version_hash import sdk_version_hash
+            from graphcore_cloud_tools.sdk_version_hash import sdk_version_hash
 
             assert "patch-version" == sdk_version_hash(), "Monkey patch has not worked. Is the import path correct?"
 
@@ -190,7 +190,7 @@ def test_cli():
     with create_cpp_file() as cpp_file:
         file_dir = os.path.dirname(cpp_file)
         output = subprocess.run(
-            ["python3", "-m", "examples_utils", "load_lib_build", file_dir],
+            ["python3", "-m", "graphcore_cloud_tools", "load_lib_build", file_dir],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

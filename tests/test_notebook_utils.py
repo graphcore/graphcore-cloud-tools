@@ -6,8 +6,8 @@ import copy
 
 import pytest
 
-from examples_utils.benchmarks import notebook_utils
-from examples_utils.benchmarks.run_benchmarks import process_notebook_to_command
+from graphcore_cloud_tools.benchmarks import notebook_utils
+from graphcore_cloud_tools.benchmarks.run_benchmarks import process_notebook_to_command
 
 TEST_DIRECTORY = Path(__file__).resolve().parent
 SAMPLE_NOTEBOOK = TEST_DIRECTORY / "test_files/sample.ipynb"
@@ -26,7 +26,7 @@ def test_cli_equivalence():
         [
             sys.executable,
             "-m",
-            "examples_utils.benchmarks.notebook_utils",
+            "graphcore_cloud_tools.benchmarks.notebook_utils",
             str(notebook_path),
             str(notebook_path.parent),
         ]
@@ -102,7 +102,7 @@ notebook_benchmark:
     """
     )
     out = subprocess.check_output(
-        ["python3", "-m", "examples_utils", "benchmark", "--gc-monitor", "--spec", str(yaml_file)]
+        ["python3", "-m", "graphcore_cloud_tools", "benchmark", "--gc-monitor", "--spec", str(yaml_file)]
     )
     assert "PASSED notebook_benchmark::notebook_benchmark" in out.decode()
 

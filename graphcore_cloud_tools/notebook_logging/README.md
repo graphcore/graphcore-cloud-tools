@@ -3,27 +3,22 @@
 ## Installation and usage
 Logging of metrics and analytics from within notebooks.
 
-For basic usage, install the `examples-utils` package and then import:
+For basic usage, install the `graphcore-cloud-tools` package and then load the extension:
 ```python
-from examples_utils import notebook_logging
-```
-
-To start the logging:
-```python
-%load_ext gc_logger
+%load_ext graphcore_cloud_tools.notebook_logging.gc_logger
 ```
 
 This will start up background processes that log and upload system, IPU and notebook usage information.
 
 To stop all logging and uploading, run:
 ```python
-%unload_ext gc_logger
+%unload_ext graphcore_cloud_tools.notebook_logging.gc_logger
 ```
 from any cell in the notebook.
 
 ## Disclaimer
 
-When you first import and generate a `GCLogger` object, the following disclaimer is displayed in the stdout of the cell in which the `%load_ext gc_logger` was run in the notebook:
+When you first import and generate a `GCLogger` object, the following disclaimer is displayed in the stdout of the cell in which the `%load_ext %load_ext graphcore_cloud_tools.notebook_logging.gc_logger` was run in the notebook:
 ```
 In order to improve usability and support for future users, Graphcore would like to collect information about the
 applications and code being run in this notebook. The following information will be anonymised before being sent to Graphcore:
@@ -32,7 +27,7 @@ applications and code being run in this notebook. The following information will
 - Notebook details: number of cells, code being run and the output of the cells
 - Environment details
 
-You can disable logging at any time by running `%unload_ext gc_logger` from any cell.
+You can disable logging at any time by running `%unload_ext graphcore_cloud_tools.notebook_logging.gc_logger` from any cell.
 
 ```
 

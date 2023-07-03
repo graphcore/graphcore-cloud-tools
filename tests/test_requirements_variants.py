@@ -2,7 +2,7 @@
 
 from pathlib import Path
 import sys
-from examples_utils.testing import test_commands
+from graphcore_cloud_tools.testing import test_commands
 
 import pytest
 
@@ -38,12 +38,12 @@ notebook_benchmark:
         )
         print(test_commands.run_command_fail_explicitly([virtual_env, "-m", "pip", "list"]))
         return test_commands.run_command_fail_explicitly(
-            [virtual_env, "-m", "examples_utils", "benchmark", "--spec", str(yaml_file)],
+            [virtual_env, "-m", "graphcore_cloud_tools", "benchmark", "--spec", str(yaml_file)],
             ".",
         )
 
     def test_notebook_works(self, tmp_path, virtual_env):
-        """Install the package with `pip install examples-utils[jupyter]`"""
+        """Install the package with `pip install graphcore-cloud-tools[jupyter]`"""
         test_commands.run_command_fail_explicitly(
             [virtual_env, "-m", "pip", "install", f"{ROOT_REPOSITORY}[jupyter]"], "."
         )
@@ -72,7 +72,7 @@ script_benchmark:
     )
     print(test_commands.run_command_fail_explicitly([virtual_env, "-m", "pip", "list"]))
     out = test_commands.run_command_fail_explicitly(
-        [virtual_env, "-m", "examples_utils", "benchmark", "--gc-monitor", "--spec", str(yaml_file)],
+        [virtual_env, "-m", "graphcore_cloud_tools", "benchmark", "--gc-monitor", "--spec", str(yaml_file)],
         ".",
     )
     assert "PASSED script_benchmark::script_benchmark" in out

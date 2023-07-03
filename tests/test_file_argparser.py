@@ -3,7 +3,7 @@
 import unittest
 import argparse
 
-from examples_utils.parsing import file_argparse
+from graphcore_cloud_tools.parsing import file_argparse
 
 
 def add_arguments(parser):
