@@ -1,6 +1,0 @@
-- id: pinned-requirements
-  name: Pinned Requirements
-  description: Checks that all requirements files have been pinned. Has to be run as a system hook to allow reading local deps
-  language: script
-  entry: graphcore_cloud_tools/precommit/pinned_requirements/entrypoint.sh
-  files: 'requirements*.txt'
