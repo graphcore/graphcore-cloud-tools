@@ -1,0 +1,51 @@
+name: Run pytest
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    container: graphcore/pytorch:latest
+    outputs:
+      summary: ${{ steps.output.outputs.summary }}
+    env:
+      VIRTUAL_ENV: /some/fake/venv/path
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install -r requirements-jupyter.txt
+          pip install -r requirements-precommit.txt
+          : #Install virtualenv outside of requirements file to avoid installing on local machines
+          pip install virtualenv
+
+      - name: Test with pytest
+        run: |
+          python -m pytest --cov --cov-report xml --junitxml=reports/pytest_report.xml
+      - name: Upload Report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: reports_${{ github.run_id }}
+          path: reports/*report.xml
+      - name: Upload Report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage_${{ github.run_id }}
+          path: coverage.xml
+      - name: Publish Summary
+        if: always()
+        id: publish_summary
+        uses: mikepenz/action-junit-report@d507ab47ffeb036bd3671233143d8026470aa955 # v3.6.2 (pinned for security reasons)
+        with:
+          check_name: Report Summary
+          report_paths: reports/*report.xml
