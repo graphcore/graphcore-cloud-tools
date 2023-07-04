@@ -17,7 +17,6 @@ REQUIREMENTS: List[Tuple[str, bool]] = [
     ("protobuf==3.19.4", True),
     ("wandb>=0.12.8", False),
     ("horovod[pytorch]==0.24.0", True),
-    ("git+https://github.com/graphcore/graphcore-cloud-tools@latest_stable", True),
     ("git+https://github.com/graphcore/graphcore-cloud-tools", False),
     ("cmake==3.22.4", True),
     ("numpy==1.23.5; python_version > '3.7'", True),
@@ -39,7 +38,6 @@ REQUIREMENTS: List[Tuple[str, bool]] = [
 @pytest.mark.parametrize(
     "line, expected_result",
     [
-        ("git+https://github.com/graphcore/graphcore-cloud-tools@latest_stable", True),
         ("git+https://github.com/graphcore/graphcore-cloud-tools", False),
         (
             "graphcore-cloud-tools[common] @ git+https://github.com/graphcore/graphcore-cloud-tools.git@7cd37a8eccabe88e3741eef2c31bafd4fcd30c4c",
@@ -110,7 +108,6 @@ def test_fix_invalid(tmp_path: Path, mocker: Generator["MockerFixture", None, No
     requirement_dict = {
         "numpy==1.23.5": True,
         "pandas": False,
-        "git+https://github.com/graphcore/graphcore-cloud-tools@latest_stable": True,
         "git+https://github.com/graphcore/graphcore-cloud-tools": False,
     }
 
@@ -127,7 +124,6 @@ def test_fix_invalid(tmp_path: Path, mocker: Generator["MockerFixture", None, No
     expected_lines = [
         "numpy==1.23.5",
         "pandas==5.1.1",
-        "git+https://github.com/graphcore/graphcore-cloud-tools@latest_stable",
         "git+https://github.com/graphcore/graphcore-cloud-toolsd-tools",
     ]
     with open(req_file) as fh:
