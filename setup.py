@@ -6,7 +6,7 @@ from pathlib import Path
 from glob import glob
 import re
 
-from setuptools import find_packages, setup
+from setuptools import setup
 
 
 def read(*paths, **kwargs):

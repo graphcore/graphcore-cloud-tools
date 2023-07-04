@@ -1,5 +1,5 @@
 # graphcore-cloud-tools
-Various common tools and utils for Grpahcore's cloud services.
+Various common tools and utils for Graphcore's cloud services.
 
 ## Command line interface
 
