@@ -124,7 +124,7 @@ def test_fix_invalid(tmp_path: Path, mocker: Generator["MockerFixture", None, No
     expected_lines = [
         "numpy==1.23.5",
         "pandas==5.1.1",
-        "git+https://github.com/graphcore/graphcore-cloud-toolsd-tools",
+        "git+https://github.com/graphcore/graphcore-cloud-tools",
     ]
     with open(req_file) as fh:
         lines = fh.readlines()
