@@ -17,16 +17,14 @@ The `graphcore-cloud-tools` package can be installed from source via pip:
 python -m pip install git+https://github.com/graphcore/graphcore-cloud-tools.git
 ```
 
-By default, this will only install a minimal set of requirements. To benchmark notebooks you must
-install the "jupyter" set of requirements:
-
-```console
-python -m pip install "graphcore-cloud-tools[jupyter] @ git+https://github.com/graphcore/graphcore-cloud-tools.git"
-```
-
 ## Notebook logging
 
 The Graphcore logger for notebooks, `GCLogger`, is an IPython extension module that tracks user behaviour within the Jupyter notebooks we provide via Paperspace. For more information, refer to the [notebook logging README](https://github.com/graphcore/graphcore-cloud-tools/blob/master/graphcore_cloud_tools/notebook_logging/README.md)
+
+To install:
+```console
+python -m pip install "graphcore-cloud-tools[logger] @ https://github.com/graphcore/graphcore-cloud-tools.git"
+```
 
 ## Pre-Commit Hooks
 
