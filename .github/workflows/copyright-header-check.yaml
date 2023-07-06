@@ -10,4 +10,4 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v1
       - name: Run test_copyright.py
-        run: python3 examples_utils/testing/test_copyright.py
+        run: python3 ./testing/test_copyright.py
