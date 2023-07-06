@@ -29,3 +29,5 @@ repos:
       entry: python3 -m graphcore_cloud_tools test_copyright --amend
       pass_filenames: false
       language: python
+      additional_dependencies:
+        - "git+https://github.com/graphcore/graphcore-cloud-tools"
