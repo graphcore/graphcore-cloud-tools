@@ -26,8 +26,6 @@ repos:
     - id: copyright-header-check
       name: Copyright header check
       description: Ensures that files have the proper copyright line at the top
-      entry: python3 -m examples_utils test_copyright --amend
+      entry: python3 -m graphcore_cloud_tools test_copyright --amend
       pass_filenames: false
       language: python
-      additional_dependencies:
-        - "git+https://github.com/graphcore/examples-utils@f8673d362fdc7dc77e1fee5f77cbcd81dd9e4a2e"
