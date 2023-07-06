@@ -171,7 +171,9 @@ if __name__ == "__main__":
     opts = parser.parse_args()
 
     logging.basicConfig(
-        level=opts.log_level, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        level=opts.log_level,
+        format="%(asctime)s %(levelname)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
     logging.info(f"Staring. Process id: {os.getpid()}")
 

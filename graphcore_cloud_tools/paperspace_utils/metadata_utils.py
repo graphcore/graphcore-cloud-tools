@@ -17,6 +17,7 @@ import datetime
 
 METADATA_FILENAME = "gradient_dataset_metadata.json"
 
+
 # Copied from paperspace_automation upload script
 def md5_hash_file(file_path: Path):
     md5 = hashlib.md5()
@@ -165,7 +166,11 @@ def get_metadata_file_data(name: str, path: str):
     gradient_file_arguments = preprocess_list_of_files(dataset_folder, file_list)
 
     file_metadata = get_files_metadata(gradient_file_arguments, True)
-    metadata = {"dataset": dataset._asdict(), "timestamp": str(datetime.datetime.now()), "files": file_metadata}
+    metadata = {
+        "dataset": dataset._asdict(),
+        "timestamp": str(datetime.datetime.now()),
+        "files": file_metadata,
+    }
 
     metadata_filepath = create_metadata_file(metadata, dataset_folder)
     return metadata_filepath

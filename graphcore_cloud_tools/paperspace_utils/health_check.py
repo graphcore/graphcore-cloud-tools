@@ -56,7 +56,11 @@ def check_paths_exists(paths: [str]):
 
 
 def parse_args(parser: argparse.ArgumentParser):
-    parser.add_argument("--log-folder", default="/storage/graphcore_health_checks", help="Folder for log output")
+    parser.add_argument(
+        "--log-folder",
+        default="/storage/graphcore_health_checks",
+        help="Folder for log output",
+    )
     parser.add_argument(
         "--gradient-settings-file",
         default="/notebooks/.gradient/settings.yaml",
@@ -98,7 +102,10 @@ def run_health_check(args):
         new_folders = list(map(os.path.expandvars, symlinks.keys()))
     symlinks_exist = check_paths_exists(new_folders)
 
-    output_json_dict = {"mounted_datasets": datasets_mounted, "symlinks_exist": symlinks_exist}
+    output_json_dict = {
+        "mounted_datasets": datasets_mounted,
+        "symlinks_exist": symlinks_exist,
+    }
 
     (
         health_check_dir / f"{datetime.fromtimestamp(time()).strftime('%Y-%m-%d-%H.%M.%S')}_{notebook_id}.json"
