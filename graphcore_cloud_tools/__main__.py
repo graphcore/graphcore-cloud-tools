@@ -13,9 +13,7 @@ def main(raw_args):
 
     subparsers = parser.add_subparsers(dest="subparser")
 
-    paperspace_subparser = subparsers.add_parser(
-        "paperspace", description="Run paperspace scripts."
-    )
+    paperspace_subparser = subparsers.add_parser("paperspace", description="Run paperspace scripts.")
     paperspace_parser(paperspace_subparser)
 
     copyright_subparser = subparsers.add_parser("test_copyright", description="Run copyright header test.")
@@ -32,11 +30,7 @@ def main(raw_args):
     elif args.subparser == "paperspace":
         run_paperspace(args)
     else:
-        err = (
-            "Please select from one of:"
-            "\n\t`test_copyright`"
-            "\n\t`paperspace`"
-        )
+        err = "Please select from one of:" "\n\t`test_copyright`" "\n\t`paperspace`"
         raise Exception(err)
 
 

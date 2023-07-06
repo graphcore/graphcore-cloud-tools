@@ -4,11 +4,13 @@ import argparse
 from .symlink_datasets_and_caches import run_symlinks, parse_symlinks_args
 from .health_check import run_health_check
 
+
 def paperspace_parser(parser: argparse.ArgumentParser):
     """Add paperspace arguments to argparse parser"""
     subparsers = parser.add_subparsers(dest="option")
     symlinks_subparser = subparsers.add_parser("symlinks")
     parse_symlinks_args(symlinks_subparser)
+
 
 def run_paperspace(args: argparse.Namespace):
     """Run paperspace scripts.
