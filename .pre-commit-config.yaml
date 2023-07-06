@@ -21,8 +21,7 @@ repos:
     hooks:
       - id: clang-format
         args: [-i]
-  - repo: https://github.com/graphcore/graphcore-cloud-tools
-    rev: latest_stable
+  - repo: local
     hooks:
     - id: copyright-header-check
       name: Copyright header check
@@ -30,6 +29,5 @@ repos:
       entry: python3 -m examples_utils test_copyright --amend
       pass_filenames: false
       language: python
-      additional_dependencies: 
-        - 'git+https://github.com/graphcore/graphcore-cloud-tools'
-      args: [--amend]
+      additional_dependencies:
+        - "git+https://github.com/graphcore/examples-utils@f8673d362fdc7dc77e1fee5f77cbcd81dd9e4a2e"
