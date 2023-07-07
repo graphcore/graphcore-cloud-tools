@@ -6,7 +6,7 @@ from pathlib import Path
 from glob import glob
 import re
 
-from setuptools import find_packages, setup
+from setuptools import setup
 
 
 def read(*paths, **kwargs):
@@ -32,7 +32,9 @@ def read_requirements(path):
 
 def get_version():
     """Looks for __version__ attribute in top most __init__.py"""
-    version_lines = [l for l in read("examples_utils/__init__.py").splitlines() if re.match("__version__\\s*=", l)]
+    version_lines = [
+        l for l in read("graphcore_cloud_tools/__init__.py").splitlines() if re.match("__version__\\s*=", l)
+    ]
     if len(version_lines) != 1:
         raise ValueError(
             "Cannot identify version: 0 or multiple lines " f"were identified as candidates: {version_lines}"
@@ -45,29 +47,28 @@ def get_version():
 
 
 extra_requires = {
-    "benchmark": read_requirements("requirements-benchmark.txt"),
-    # Alias to avoid breaking existing requirements.txt files where [common] is used
-    "common": read_requirements("requirements.txt"),
     "dev": read_requirements("requirements-dev.txt"),
-    "jupyter": read_requirements("requirements-jupyter.txt") + read_requirements("requirements-benchmark.txt"),
+    "jupyter": read_requirements("requirements-jupyter.txt"),
     "logger": read_requirements("requirements-logger.txt"),
     "precommit": read_requirements("requirements-precommit.txt"),
 }
-extra_requires["all"] = extra_requires["dev"] + extra_requires["jupyter"] + extra_requires["precommit"]
+extra_requires["all"] = []
+for reqs in extra_requires.values():
+    extra_requires["all"].extend(reqs)
 
 setup(
-    name="examples-utils",
-    description="Utilities, benchmarking and common code for Graphcore's example applications",
+    name="graphcore-cloud-tools",
+    description="Various common tools and utils for Grpahcore's cloud services",
     long_description="file: README.md",
     long_description_content_type="text/markdown",
     license="MIT License",
     author="Graphcore Ltd.",
-    url="https://github.com/graphcore/examples-utils",
-    # download_urls = "https://pypi.org/project/examples-utils",
+    url="https://github.com/graphcore/graphcore-cloud-tools",
+    # download_urls = "https://pypi.org/project/graphcore-cloud-tools",
     project_urls={
-        # "Documentation": "https://graphcore.github.io/examples-utils",
-        "Code": "https://github.com/graphcore/examples-utils",
-        "Issue tracker": "https://github.com/graphcore/examples-utils/issues",
+        # "Documentation": "https://graphcore.github.io/graphcore-cloud-tools",
+        "Code": "https://github.com/graphcore/graphcore-cloud-tools",
+        "Issue tracker": "https://github.com/graphcore/graphcore-cloud-tools/issues",
     },
     classifiers=[  # Optional
         "Development Status :: 4 - Beta",
@@ -78,12 +79,12 @@ setup(
     ],
     install_requires=read_requirements("requirements.txt"),
     extras_require=extra_requires,
-    packages=["examples_utils"],
+    packages=["graphcore_cloud_tools"],
     package_data={
-        "examples_utils":
-        # Paths need to be relative to `examples_utils/` folder
-        [os.path.join(*Path(f).parts[1:]) for f in glob("examples_utils/**/*.py", recursive=True)]
-        + [os.path.join(*Path(f).parts[1:]) for f in glob("examples_utils/**/*.cpp", recursive=True)]
+        "graphcore_cloud_tools":
+        # Paths need to be relative to `graphcore-cloud-tools/` folder
+        [os.path.join(*Path(f).parts[1:]) for f in glob("graphcore_cloud_tools/**/*.py", recursive=True)]
+        + [os.path.join(*Path(f).parts[1:]) for f in glob("graphcore_cloud_tools/**/*.cpp", recursive=True)]
     },
     version=get_version(),
 )

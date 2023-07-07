@@ -3,3 +3,4 @@ yapf==0.27.0
 tomlkit>=0.11.6
 pytest-cov
 pytest-mock==3.10.0
+requirements-parser>=0.5.0

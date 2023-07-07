@@ -2,5 +2,12 @@
   name: Pinned Requirements
   description: Checks that all requirements files have been pinned. Has to be run as a system hook to allow reading local deps
   language: script
-  entry: examples_utils/precommit/pinned_requirements/entrypoint.sh
+  entry: graphcore_cloud_tools/precommit/pinned_requirements/entrypoint.sh
   files: 'requirements*.txt'
+- id: copyright-header-check
+  name: Copyright header check
+  description: Ensures that files have the proper copyright line at the top
+  language: python
+  entry: python3 -m examples_utils test_copyright
+  additional_dependencies:
+    - 'git+https://github.com/graphcore/examples-utils@latest_stable'
