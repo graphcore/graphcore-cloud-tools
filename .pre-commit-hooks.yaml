@@ -8,4 +8,6 @@
   name: Copyright header check
   description: Ensures that files have the proper copyright line at the top
   language: python
-  entry: python3 -m graphcore_cloud_tools test_copyright
+  entry: python3 -m examples_utils test_copyright
+  additional_dependencies:
+    - 'git+https://github.com/graphcore/examples-utils@latest_stable'
