@@ -48,9 +48,7 @@ def get_version():
 
 extra_requires = {
     "dev": read_requirements("requirements-dev.txt"),
-    "jupyter": read_requirements("requirements-jupyter.txt"),
     "logger": read_requirements("requirements-logger.txt"),
-    "precommit": read_requirements("requirements-precommit.txt"),
 }
 extra_requires["all"] = []
 for reqs in extra_requires.values():
