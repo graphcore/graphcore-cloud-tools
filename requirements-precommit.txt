@@ -1,3 +1,0 @@
-pyyaml>=6.0
-requirements-parser==0.5.0
-setuptools==44.0.0 # Must be fixed to this as later versions have a bug on reqs that include "+cpu"
