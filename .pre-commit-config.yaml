@@ -28,7 +28,6 @@ repos:
       description: Ensures that files have the proper copyright line at the top
       language: python
       pass_filenames: false
-      language: python
       entry: python3 -m examples_utils test_copyright --amend
       additional_dependencies:
         - 'git+https://github.com/graphcore/examples-utils@latest_stable'
