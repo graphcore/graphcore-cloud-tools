@@ -1,12 +1,12 @@
 name: Run pytest
 
-on: [push, pull_request]
+on: [pull_request]
 
 jobs:
   build:
 
     runs-on: ubuntu-latest
-    container: graphcore/pytorch:latest
+    container: graphcore/pytorch-paperspace:latest
     outputs:
       summary: ${{ steps.output.outputs.summary }}
     env:
