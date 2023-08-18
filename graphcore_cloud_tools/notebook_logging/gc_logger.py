@@ -14,6 +14,16 @@ import nbformat
 from datetime import datetime
 from pathlib import Path
 
+USER_WARNING_STRING = (
+    "In order to improve usability and support for future users, Graphcore would like to collect information about the "
+    "applications and code being run in this notebook. The following information will be anonymised before being sent to Graphcore: \n"
+    "\t- User progression through the notebook \n"
+    "\t- Notebook details: number of cells, code being run and the output of the cells \n"
+    "\t- Environment details \n\n"
+    "You can disable logging at any time by running `%unload_ext graphcore_cloud_tools.notebook_logging.gc_logger` from any cell. \n"
+)
+
+LOGGER_DISABLED_NOTICE = "Graphcore logger disabled"
 
 class GCLogger(object):
     """
@@ -145,17 +155,11 @@ class GCLogger(object):
                     )
 
                     # Inform user
-                    print(
-                        "In order to improve usability and support for future users, Graphcore would like to collect information about the "
-                        "applications and code being run in this notebook. The following information will be anonymised before being sent to Graphcore: \n"
-                        "\t- User progression through the notebook \n"
-                        "\t- Notebook details: number of cells, code being run and the output of the cells \n"
-                        "\t- Environment details \n\n"
-                        "You can disable logging at any time by running `%unload_ext graphcore_cloud_tools.notebook_logging.gc_logger` from any cell. \n"
-                    )
+                    print(USER_WARNING_STRING)
 
                 except:
                     cls.LOG_STATE = "DISABLED"
+                    print(LOGGER_DISABLED_NOTICE)
                     return cls._instance
 
                 # Prepare shared dict and populate with Nulls in schema format
@@ -193,6 +197,7 @@ class GCLogger(object):
 
             else:
                 cls.LOG_STATE = "DISABLED"
+                print(LOGGER_DISABLED_NOTICE)
 
         return cls._instance
 
@@ -277,7 +282,7 @@ class GCLogger(object):
                 notebook_path = Path("failed-to-get-nb-path")
 
             # Encode and hash
-            notebook_id = os.getenv("PAPERSPACE_NOTEBOOK_ID")
+            notebook_id = os.getenv("PAPERSPACE_NOTEBOOK_ID", "unknown")
             salted_id = notebook_id + datetime.now().strftime("%Y-%m-%d")
             anonymised_notebook_id = base64.urlsafe_b64encode(hashlib.md5(salted_id.encode("utf-8")).digest()).decode(
                 "ascii"
@@ -601,7 +606,7 @@ def unload_ipython_extension(ip):
 
     global _gc_logger
     _gc_logger.LOG_STATE = "DISABLED"
-
+    print(LOGGER_DISABLED_NOTICE)
     ip.events.unregister("pre_run_cell", _gc_logger.pre_run_cell)
     ip.events.unregister("post_run_cell", _gc_logger.post_run_cell)
 

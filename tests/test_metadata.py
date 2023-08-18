@@ -1,14 +1,11 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 
-from importlib.metadata import metadata
-import os
 from graphcore_cloud_tools.paperspace_utils import (
     create_metadata_file,
     get_metadata_file_data,
     check_files_match_metadata,
 )
 import pytest
-import shutil
 import json
 from pathlib import Path
 import logging

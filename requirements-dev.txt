@@ -4,3 +4,5 @@ tomlkit>=0.11.6
 pytest-cov
 pytest-mock==3.10.0
 requirements-parser>=0.5.0
+nbconvert>=6.0.7
+nbformat>=5.1.3
