@@ -11,6 +11,7 @@ from typing import List
 
 FUSEOVERLAY_ROOT = os.getenv("SYMLINK_FUSE_ROOTDIR", "/fusedoverlay")
 
+
 def check_dataset_is_mounted(source_dirs_list: List[str]) -> List[str]:
     source_dirs_exist_paths = []
     for source_dir in source_dirs_list:

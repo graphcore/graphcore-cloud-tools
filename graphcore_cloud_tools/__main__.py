@@ -15,7 +15,6 @@ def main(raw_args):
     paperspace_subparser = subparsers.add_parser("paperspace", description="Run paperspace scripts.")
     paperspace_parser(paperspace_subparser)
 
-
     args = parser.parse_args(raw_args[1:])
 
     if len(raw_args) <= 1:

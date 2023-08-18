@@ -25,6 +25,7 @@ USER_WARNING_STRING = (
 
 LOGGER_DISABLED_NOTICE = "Graphcore logger disabled"
 
+
 class GCLogger(object):
     """
     Singleton class for logging the Graphcore Jupyter notebook execution events.
