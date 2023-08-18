@@ -4,7 +4,6 @@ _MISSING_REQUIREMENTS = {}
 import argparse
 import sys
 
-from .testing.test_copyright import copyright_argparser, test_copyrights
 from .paperspace_utils import paperspace_parser, run_paperspace
 
 
@@ -16,8 +15,6 @@ def main(raw_args):
     paperspace_subparser = subparsers.add_parser("paperspace", description="Run paperspace scripts.")
     paperspace_parser(paperspace_subparser)
 
-    copyright_subparser = subparsers.add_parser("test_copyright", description="Run copyright header test.")
-    copyright_argparser(copyright_subparser)
 
     args = parser.parse_args(raw_args[1:])
 
@@ -25,8 +22,6 @@ def main(raw_args):
         parser.print_usage()
         sys.exit(1)
 
-    elif args.subparser == "test_copyright":
-        test_copyrights(args.path, args.amend, args.exclude_json)
     elif args.subparser == "paperspace":
         run_paperspace(args)
     else:
