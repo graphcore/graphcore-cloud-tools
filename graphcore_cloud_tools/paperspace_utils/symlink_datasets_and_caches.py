@@ -1,4 +1,5 @@
 #! /usr/bin/env -S python3 -u
+# Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 import json
 import time
 from pathlib import Path
@@ -20,6 +21,7 @@ S3_DATASETS_DIR = os.getenv("S3_DATASETS_DIR")
 # A list of semi-colon separated endpoints
 AWS_ENDPOINT = os.getenv("DATASET_S3_DOWNLOAD_ENDPOINT", "http://10.12.17.246:8000")
 AWS_CREDENTIAL = os.getenv("DATASET_S3_DOWNLOAD_B64_CREDENTIAL")
+
 
 def check_dataset_is_mounted(source_dirs_list: List[str]) -> List[str]:
     source_dirs_exist_paths = []
@@ -101,11 +103,16 @@ def get_valid_aws_endpoints():
         print("Using global endpoint")
     return valid_aws_endpoints
 
+
 def prepare_cred():
-    read_only = AWS_CREDENTIAL if AWS_CREDENTIAL else """W2djZGF0YS1yXQphd3NfYWNjZXNzX2tleV9pZCA9IDJaRUFVQllWWThCQVkwODlG
+    read_only = (
+        AWS_CREDENTIAL
+        if AWS_CREDENTIAL
+        else """W2djZGF0YS1yXQphd3NfYWNjZXNzX2tleV9pZCA9IDJaRUFVQllWWThCQVkwODlG
 V0FICmF3c19zZWNyZXRfYWNjZXNzX2tleSA9IDZUbDdIbUh2cFhjdURkRmd5NlBV
 Q0t5bTF0NmlMVVBCWWlZRFYzS2MK
 """
+    )
     cred_bytes = base64.b64decode(read_only)
     creds_file = Path("/root/.aws/credentials")
     creds_file.parent.mkdir(exist_ok=True, parents=True)
@@ -113,6 +120,7 @@ Q0t5bTF0NmlMVVBCWWlZRFYzS2MK
     if "gcdata-r" not in creds_file.read_text():
         with open(creds_file, "ab") as f:
             f.write(cred_bytes)
+
 
 def download_dataset_from_s3(source_dirs_list: List[str]) -> List[str]:
     aws_endpoints = get_valid_aws_endpoints()
@@ -146,7 +154,7 @@ class GradientDatasetFile(NamedTuple):
 
     @classmethod
     def from_response(cls, s3_response: dict):
-        bucket_name: str =f"s3://{s3_response['Name']}"
+        bucket_name: str = f"s3://{s3_response['Name']}"
         s3_prefix = s3_response["Prefix"]
         local_root = S3_DATASETS_DIR
         for pre in s3_prefix.split("/"):
@@ -155,8 +163,9 @@ class GradientDatasetFile(NamedTuple):
         print(local_root)
         if "/" != bucket_name[-1]:
             bucket_name = f"{bucket_name}/"
+
         def single_entry(s3_content_response: dict):
-            s3_object_name: str = s3_content_response['Key']
+            s3_object_name: str = s3_content_response["Key"]
             full_s3file = f"{bucket_name}{s3_object_name}"
             relative_file = s3_object_name.replace(s3_prefix, "").strip("/")
             return cls(
@@ -165,23 +174,23 @@ class GradientDatasetFile(NamedTuple):
                 local_root=local_root,
                 size=s3_content_response.get("Size", 0),
             )
+
         return [single_entry(c) for c in s3_response["Contents"]]
 
 
-def list_files(client: "boto3.Client", dataset_name:str):
+def list_files(client: "boto3.Client", dataset_name: str):
     dataset_prefix = f"graphcore-gradient-datasets/{dataset_name}"
-    out = client.list_objects_v2(
-        Bucket="sdk",
-        MaxKeys=10000,
-        Prefix=dataset_prefix
-    )
+    out = client.list_objects_v2(Bucket="sdk", MaxKeys=10000, Prefix=dataset_prefix)
     assert out["ResponseMetadata"].get("HTTPStatusCode", 200) == 200, "Response did not have HTTPS status 200"
     assert not out["IsTruncated"], "Handling of truncated response is not handled yet"
     return GradientDatasetFile.from_response(out)
 
-def apply_symlink(list_files: List[GradientDatasetFile], directory_map: Dict[str, List[str]]) -> List[GradientDatasetFile]:
+
+def apply_symlink(
+    list_files: List[GradientDatasetFile], directory_map: Dict[str, List[str]]
+) -> List[GradientDatasetFile]:
     source_target = {source: target for target, sources in directory_map.items() for source in sources}
-    return[file._replace(local_root=source_target[file.local_root]) for file in list_files]
+    return [file._replace(local_root=source_target[file.local_root]) for file in list_files]
 
 
 class DownloadOuput(NamedTuple):
@@ -200,9 +209,12 @@ def download_file_iterate_endpoints(aws_endpoints: List[str], *args, **kwargs):
             pass
     raise
 
-def download_file(aws_endpoint: str, aws_credential, file: GradientDatasetFile,*,max_concurrency, use_cli, progress=""):
+
+def download_file(
+    aws_endpoint: str, aws_credential, file: GradientDatasetFile, *, max_concurrency, use_cli, progress=""
+):
     bucket_name = "sdk"
-    s3client = boto3.Session(profile_name=aws_credential).client('s3', endpoint_url=aws_endpoint)
+    s3client = boto3.Session(profile_name=aws_credential).client("s3", endpoint_url=aws_endpoint)
     print(f"Downloading {progress} {file}")
     start = time.time()
     config = TransferConfig(max_concurrency=max_concurrency)
@@ -219,16 +231,18 @@ def download_file(aws_endpoint: str, aws_credential, file: GradientDatasetFile,*
         print(cmd)
         subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     elapsed = time.time() - start
-    size_gb = file.size / (1024 ** 3)
+    size_gb = file.size / (1024**3)
     print(f"Finished {progress}: {size_gb:.2f}GB in {elapsed:.0f}s ({size_gb/elapsed:.3f} GB/s) for file {target}")
     return DownloadOuput(elapsed, size_gb)
 
 
-def parallel_download_dataset_from_s3(directory_map: Dict[str, List[str]], *, max_concurrency=1, num_concurrent_downloads=1, symlink=True, use_cli=False) -> List[GradientDatasetFile]:
+def parallel_download_dataset_from_s3(
+    directory_map: Dict[str, List[str]], *, max_concurrency=1, num_concurrent_downloads=1, symlink=True, use_cli=False
+) -> List[GradientDatasetFile]:
     aws_credential = "gcdata-r"
     aws_endpoints = get_valid_aws_endpoints()
 
-    s3 = boto3.Session(profile_name=aws_credential).client('s3', endpoint_url=aws_endpoints[0])
+    s3 = boto3.Session(profile_name=aws_credential).client("s3", endpoint_url=aws_endpoints[0])
 
     # Disable thread use/transfer concurrency
 
@@ -246,10 +260,23 @@ def parallel_download_dataset_from_s3(directory_map: Dict[str, List[str]], *, ma
 
     start = time.time()
     with ProcessPoolExecutor(max_workers=num_concurrent_downloads) as executor:
-        outputs = [executor.submit(download_file_iterate_endpoints, aws_endpoints, aws_credential, file, max_concurrency=max_concurrency, use_cli=use_cli, progress=f"{i+1}/{num_files}") for i, file in enumerate(files_to_download)]
+        outputs = [
+            executor.submit(
+                download_file_iterate_endpoints,
+                aws_endpoints,
+                aws_credential,
+                file,
+                max_concurrency=max_concurrency,
+                use_cli=use_cli,
+                progress=f"{i+1}/{num_files}",
+            )
+            for i, file in enumerate(files_to_download)
+        ]
     total_elapsed = time.time() - start
     total_download_size = sum(o.result().gigabytes for o in outputs)
-    print(f"Finished downloading {num_files} files: {total_download_size:.2f} GB in {total_elapsed:.2f}s ({total_download_size/total_elapsed:.2f}  GB/s)")
+    print(
+        f"Finished downloading {num_files} files: {total_download_size:.2f} GB in {total_elapsed:.2f}s ({total_download_size/total_elapsed:.2f}  GB/s)"
+    )
     return files_to_download
 
 
@@ -261,19 +288,30 @@ def copy_graphcore_s3(args):
     json_data = os.path.expandvars(json_data)
     config = json.loads(json_data)
     prepare_cred()
-    source_dirs_exist_paths = parallel_download_dataset_from_s3(config, max_concurrency=args.max_concurrency, num_concurrent_downloads=args.num_concurrent_downloads, symlink=args.no_symlink)
+    source_dirs_exist_paths = parallel_download_dataset_from_s3(
+        config,
+        max_concurrency=args.max_concurrency,
+        num_concurrent_downloads=args.num_concurrent_downloads,
+        symlink=args.no_symlink,
+    )
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--gradient-dataset", action="store_true", help="Use gradient datasets rather than S3 storage access")
+    parser.add_argument(
+        "--gradient-dataset", action="store_true", help="Use gradient datasets rather than S3 storage access"
+    )
     parser.add_argument("--no-symlink", action="store_false", help="Turn off the symlinking")
     parser.add_argument("--use-cli", action="store_true", help="Use the CLI instead of boto3")
-    parser.add_argument("--num-concurrent-downloads", default=1, type=int, help="Number of concurrent files to download")
+    parser.add_argument(
+        "--num-concurrent-downloads", default=1, type=int, help="Number of concurrent files to download"
+    )
     parser.add_argument("--max-concurrency", default=1, type=int, help="S3 maximum concurrency")
     parser.add_argument("--config-file", default=str(Path(".").resolve().parent / "symlink_config.json"))
 
     args = parser.parse_args()
     return args
+
 
 if __name__ == "__main__":
     args = parse_args()
