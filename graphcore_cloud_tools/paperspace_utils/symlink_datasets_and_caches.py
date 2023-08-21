@@ -1,5 +1,6 @@
 #! /usr/bin/env -S python3 -u
-# Copyright (c) 2023 Graphcore Ltd. All rights reserved.import json
+# Copyright (c) 2023 Graphcore Ltd. All rights reserved.
+import json
 import time
 from pathlib import Path
 import subprocess
