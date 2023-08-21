@@ -10,12 +10,14 @@ import base64
 import itertools
 import time
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+import random
 import boto3
 from boto3.s3.transfer import TransferConfig
 import argparse
 
 FUSEOVERLAY_ROOT = os.getenv("SYMLINK_FUSE_ROOTDIR", "/fusedoverlay")
 S3_DATASETS_DIR = os.getenv("S3_DATASETS_DIR")
+# A list of semi-colon separated endpoints
 AWS_ENDPOINT = os.getenv("DATASET_S3_DOWNLOAD_ENDPOINT", "http://10.12.17.246:8000")
 AWS_CREDENTIAL = os.getenv("DATASET_S3_DOWNLOAD_B64_CREDENTIAL")
 
@@ -83,16 +85,21 @@ def symlink_gradient_datasets(args):
             create_overlays(source_dirs_exist_paths, target_dir)
 
 
-def get_valid_aws_endpoint():
+def get_valid_aws_endpoints():
     # Check which endpoint should be used based on if we can directly access or not
-    try:
-        aws_endpoint = AWS_ENDPOINT
-        subprocess.check_output(["curl", aws_endpoint], timeout=3)
-        print("Using local endpoint")
-    except subprocess.TimeoutExpired:
-        aws_endpoint = "https://s3.clehbtvty.paperspacegradient.com"
+    aws_endpoints = AWS_ENDPOINT.split(";")
+    valid_aws_endpoints = []
+    for aws_endpoint in aws_endpoints:
+        try:
+            subprocess.check_output(["curl", aws_endpoint], timeout=3)
+            print(f"Validated endpoint: {aws_endpoint}")
+            valid_aws_endpoints.append(aws_endpoint)
+        except subprocess.TimeoutExpired:
+            print(f"End point could not be reached: {aws_endpoint}")
+    if not valid_aws_endpoints:
+        valid_aws_endpoints = ["https://s3.clehbtvty.paperspacegradient.com"]
         print("Using global endpoint")
-    return aws_endpoint
+    return valid_aws_endpoints
 
 def prepare_cred():
     read_only = AWS_CREDENTIAL if AWS_CREDENTIAL else """W2djZGF0YS1yXQphd3NfYWNjZXNzX2tleV9pZCA9IDJaRUFVQllWWThCQVkwODlG
@@ -108,18 +115,25 @@ Q0t5bTF0NmlMVVBCWWlZRFYzS2MK
             f.write(bytes)
 
 def download_dataset_from_s3(source_dirs_list: List[str]) -> List[str]:
-    AWS_ENDPOINT = get_valid_aws_endpoint()
+    aws_endpoints = get_valid_aws_endpoints()
     aws_credential = "gcdata-r"
     source_dirs_exist_paths = []
     for source_dir in source_dirs_list:
         source_dir_path = Path(source_dir)
         dataset_name = source_dir_path.name
-        cmd = (
-            f"aws s3 --endpoint-url {AWS_ENDPOINT} --profile {aws_credential} "
-            f"cp s3://sdk/graphcore-gradient-datasets/{dataset_name}"
-            f" /graphcore-dataset/{dataset_name} --recursive"
-        ).split()
-        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        # Cycle through the endpoints if there are errors
+        random.shuffle(aws_endpoints)
+        for aws_endpoint in aws_endpoints:
+            try:
+                cmd = (
+                    f"aws s3 --endpoint-url {aws_endpoint} --profile {aws_credential} "
+                    f"cp s3://sdk/graphcore-gradient-datasets/{dataset_name}"
+                    f" /graphcore-dataset/{dataset_name} --recursive"
+                ).split()
+                subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                break
+            except Exception:
+                pass
 
     return source_dirs_exist_paths
 
@@ -174,7 +188,19 @@ class DownloadOuput(NamedTuple):
     elapsed_seconds: float
     gigabytes: float
 
-def download_file(aws_credential, aws_endpoint, file: GradientDatasetFile,*,max_concurrency, use_cli, progress=""):
+
+def download_file_iterate_endpoints(aws_endpoints: List[str], *args, **kwargs):
+    # Randomly shuffles endpoints to load balance
+    aws_endpoints = aws_endpoints.copy()
+    random.shuffle(aws_endpoints)
+    for aws_endpoint in aws_endpoints:
+        try:
+            return download_file(aws_endpoint, *args, **kwargs)
+        except Exception:
+            pass
+    raise
+
+def download_file(aws_endpoint: str, aws_credential, file: GradientDatasetFile,*,max_concurrency, use_cli, progress=""):
     bucket_name = "sdk"
     s3client = boto3.Session(profile_name=aws_credential).client('s3', endpoint_url=aws_endpoint)
     print(f"Downloading {progress} {file}")
@@ -200,9 +226,9 @@ def download_file(aws_credential, aws_endpoint, file: GradientDatasetFile,*,max_
 
 def parallel_download_dataset_from_s3(directory_map: Dict[str, List[str]], *, max_concurrency=1, num_concurrent_downloads=1, symlink=True, use_cli=False) -> List[GradientDatasetFile]:
     aws_credential = "gcdata-r"
-    aws_endpoint = get_valid_aws_endpoint()
+    aws_endpoints = get_valid_aws_endpoints()
 
-    s3 = boto3.Session(profile_name=aws_credential).client('s3', endpoint_url=aws_endpoint)
+    s3 = boto3.Session(profile_name=aws_credential).client('s3', endpoint_url=aws_endpoints[0])
 
     # Disable thread use/transfer concurrency
 
@@ -220,7 +246,7 @@ def parallel_download_dataset_from_s3(directory_map: Dict[str, List[str]], *, ma
 
     start = time.time()
     with ProcessPoolExecutor(max_workers=num_concurrent_downloads) as executor:
-        outputs = [executor.submit(download_file, aws_credential, aws_endpoint, file, max_concurrency=max_concurrency, use_cli=use_cli, progress=f"{i+1}/{num_files}") for i, file in enumerate(files_to_download)]
+        outputs = [executor.submit(download_file_iterate_endpoints, aws_endpoints, aws_credential, file, max_concurrency=max_concurrency, use_cli=use_cli, progress=f"{i+1}/{num_files}") for i, file in enumerate(files_to_download)]
     total_elapsed = time.time() - start
     total_download_size = sum(o.result().gigabytes for o in outputs)
     print(f"Finished downloading {num_files} files: {total_download_size:.2f} GB in {total_elapsed:.2f}s ({total_download_size/total_elapsed:.2f}  GB/s)")
