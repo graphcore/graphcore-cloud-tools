@@ -106,13 +106,13 @@ def prepare_cred():
 V0FICmF3c19zZWNyZXRfYWNjZXNzX2tleSA9IDZUbDdIbUh2cFhjdURkRmd5NlBV
 Q0t5bTF0NmlMVVBCWWlZRFYzS2MK
 """
-    bytes = base64.b64decode(read_only)
+    cred_bytes = base64.b64decode(read_only)
     creds_file = Path("/root/.aws/credentials")
     creds_file.parent.mkdir(exist_ok=True, parents=True)
     creds_file.touch(exist_ok=True)
     if "gcdata-r" not in creds_file.read_text():
         with open(creds_file, "ab") as f:
-            f.write(bytes)
+            f.write(cred_bytes)
 
 def download_dataset_from_s3(source_dirs_list: List[str]) -> List[str]:
     aws_endpoints = get_valid_aws_endpoints()
