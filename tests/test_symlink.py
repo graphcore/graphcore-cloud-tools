@@ -1,4 +1,5 @@
-# Copyright (c) 2023 Graphcore Ltd. All rights reserved.from typing import Dict, List
+# Copyright (c) 2023 Graphcore Ltd. All rights reserved.
+from typing import Dict, List
 import pathlib
 import pytest
 import json
