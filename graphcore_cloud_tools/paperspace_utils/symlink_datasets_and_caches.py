@@ -40,9 +40,10 @@ def create_overlays(source_dirs_exist_paths: List[str], target_dir: str) -> subp
 
     Path(target_dir).mkdir(parents=True, exist_ok=True)
 
-    workdir = Path(FUSEOVERLAY_ROOT) / "workdirs" / source_dirs_exist_paths[0]
+    # Use this path construction as pathlib resolves 'path1 / "/path"' -> "/path"
+    workdir = Path(FUSEOVERLAY_ROOT) / f"workdirs/{source_dirs_exist_paths[0]}"
     workdir.mkdir(parents=True, exist_ok=True)
-    upperdir = Path(FUSEOVERLAY_ROOT) / "upperdir" / source_dirs_exist_paths[0]
+    upperdir = Path(FUSEOVERLAY_ROOT) / f"upperdirs/{source_dirs_exist_paths[0]}"
     upperdir.mkdir(parents=True, exist_ok=True)
 
     lowerdirs = ":".join(source_dirs_exist_paths)
