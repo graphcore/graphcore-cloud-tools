@@ -84,14 +84,14 @@ def run_symlinks(args):
         target_path = Path(target_dir).resolve()
         for source_path in source_dirs_exist_paths:
             source_path = Path(source_path).resolve()
-            expected_paths.extend([str((target_path / f.relative_to(source_path)).resolve()) for f in source_path.rglob("*")])
+            expected_paths.extend(
+                [str((target_path / f.relative_to(source_path)).resolve()) for f in source_path.rglob("*")]
+            )
         if len(source_dirs_exist_paths) > 0:
             out = create_overlays(source_dirs_exist_paths, target_dir)
         symlink_results.append((target_dir, out))
         found_target_paths.extend([str(f) for f in target_path.rglob("*")])
-    errors = [
-        f"{t} failed with error: {o}" for t, o in symlink_results if isinstance(o, str) or o.returncode != 0
-    ]
+    errors = [f"{t} failed with error: {o}" for t, o in symlink_results if isinstance(o, str) or o.returncode != 0]
     if errors:
         raise RuntimeError("\n".join(errors))
     missing_files = [e for e in expected_paths if e not in found_target_paths]
