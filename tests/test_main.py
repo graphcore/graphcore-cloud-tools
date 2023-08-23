@@ -14,9 +14,7 @@ symlink_config = test_symlink.symlink_config
 
 
 def test_symlink_command(symlink_config):
-    fuse_root = symlink_config.parent / "fusedoverlay"
-    fuse_root.mkdir()
-    os.environ["SYMLINK_FUSE_ROOTDIR"] = str(fuse_root)
+
     testutils.run_command_fail_explicitly(
         [sys.executable, "-m", "graphcore_cloud_tools", "paperspace", "symlinks", "--path", f"{symlink_config}"],
         cwd=str(REPO_ROOT),
