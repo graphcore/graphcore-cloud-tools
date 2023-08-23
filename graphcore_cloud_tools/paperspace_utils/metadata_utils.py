@@ -6,7 +6,7 @@ To use import the check_files_match_metadata function:
 check_files_match_metadata(dataset_folder: str, compare_hash: bool)
 """
 
-from typing import NamedTuple, List
+from typing import NamedTuple, List, Dict
 from pathlib import Path
 import os
 import hashlib
@@ -79,11 +79,11 @@ def preprocess_list_of_files(dataset_folder: Path, file_list: List[Path]) -> Lis
     return gradient_file_arguments
 
 
-def compare_file_lists(loaded_metadata_files: list, generated_locally_metadata_files: list):
+def compare_file_lists(loaded_metadata_files: List[Dict[str, str]], generated_locally_metadata_files: List[Dict[str, str]]):
     output_dict = {}
     # Find extra or missing files and print an error, if so remove them from relevant lists
-    expected_filepaths = list(map(lambda file_dict: file_dict["path"], loaded_metadata_files))
-    local_filepaths = list(map(lambda file_dict: file_dict["path"], generated_locally_metadata_files))
+    expected_filepaths = list(map(lambda file_dict: str(file_dict["path"]).removeprefix("/"), loaded_metadata_files))
+    local_filepaths = list(map(lambda file_dict: str(file_dict["path"]).removeprefix("/"), generated_locally_metadata_files))
     # Files found but not expected
     extra_files = [filepath for filepath in local_filepaths if filepath not in expected_filepaths]
 
