@@ -2,8 +2,7 @@
 import sys
 import pathlib
 import os
-import pytest
-import json
+from . import test_symlink
 from . import testutils
 
 
@@ -11,18 +10,7 @@ REPO_ROOT = pathlib.Path(__file__).parents[1].resolve()
 TEST_FILES_DIR = REPO_ROOT / "tests" / "test_files"
 
 
-@pytest.fixture
-def symlink_config(tmp_path: pathlib.Path):
-    config = tmp_path / "symlink_config.json"
-    source = tmp_path / "source"
-    source2 = tmp_path / "source2"
-    target = tmp_path / "target"
-    source.mkdir(parents=True)
-    source2.mkdir(parents=True)
-    (source / "test1.txt").write_text("test file 1")
-    (source2 / "test2.txt").write_text("test file 2")
-    config.write_text(json.dumps({str(target): [str(source), str(source2)]}))
-    return config
+symlink_config = test_symlink.symlink_config
 
 
 def test_symlink_command(symlink_config):
