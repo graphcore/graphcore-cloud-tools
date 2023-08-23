@@ -1,4 +1,4 @@
-from typing import Dict, List
+# Copyright (c) 2023 Graphcore Ltd. All rights reserved.from typing import Dict, List
 import pathlib
 import pytest
 import json
@@ -24,13 +24,15 @@ def symlink_config(tmp_path: pathlib.Path, monkeypatch):
 
 
 def test_files_are_visible_in_symlink_folder(symlink_config: pathlib.Path):
-    symlink_def:Dict[str, List[str]] = json.loads(symlink_config.read_text())
+    symlink_def: Dict[str, List[str]] = json.loads(symlink_config.read_text())
     expected_before_symlink_paths = []
     for target_path, source_paths in symlink_def.items():
         target_path = pathlib.Path(target_path).resolve()
         for source_path in source_paths:
             source_path = pathlib.Path(source_path).resolve()
-            expected_before_symlink_paths.extend([str((target_path / f.relative_to(source_path)).resolve()) for f in source_path.rglob("*")])
+            expected_before_symlink_paths.extend(
+                [str((target_path / f.relative_to(source_path)).resolve()) for f in source_path.rglob("*")]
+            )
 
     # Create the symlinks
     symlink_datasets_and_caches.run_symlinks(argparse.Namespace(path=str(symlink_config)))
@@ -41,7 +43,9 @@ def test_files_are_visible_in_symlink_folder(symlink_config: pathlib.Path):
         target_path = pathlib.Path(target_path).resolve()
         for source_path in source_paths:
             source_path = pathlib.Path(source_path).resolve()
-            expected_paths.extend([str((target_path / f.relative_to(source_path)).resolve()) for f in source_path.rglob("*")])
+            expected_paths.extend(
+                [str((target_path / f.relative_to(source_path)).resolve()) for f in source_path.rglob("*")]
+            )
 
     # Find all the files after symlink creation
     found = []
@@ -51,7 +55,9 @@ def test_files_are_visible_in_symlink_folder(symlink_config: pathlib.Path):
 
     # Check that the source files haven't changed
     files_added_by_symlinking = [e for e in expected_paths if e not in expected_before_symlink_paths]
-    assert not files_added_by_symlinking, f"Symlinking created files or folders in read/only space {files_added_by_symlinking}"
+    assert (
+        not files_added_by_symlinking
+    ), f"Symlinking created files or folders in read/only space {files_added_by_symlinking}"
     # Check that the symlink files are there
     missing_files = [e for e in expected_paths if e not in found]
     assert not missing_files, f"There were missing files: {missing_files}\n found: {found}\n expected: {expected_paths}"
