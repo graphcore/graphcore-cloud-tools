@@ -82,8 +82,16 @@ def preprocess_list_of_files(dataset_folder: Path, file_list: List[Path]) -> Lis
 def compare_file_lists(loaded_metadata_files: List[Dict[str, str]], generated_locally_metadata_files: List[Dict[str, str]]):
     output_dict = {}
     # Find extra or missing files and print an error, if so remove them from relevant lists
-    expected_filepaths = list(map(lambda file_dict: str(file_dict["path"]).removeprefix("/"), loaded_metadata_files))
-    local_filepaths = list(map(lambda file_dict: str(file_dict["path"]).removeprefix("/"), generated_locally_metadata_files))
+    def preprocess(file_dict):
+        path = str(file_dict["path"])
+        if path[0] == "/":
+            path = path[1:]
+        file_dict["path"] = path
+        return file_dict
+    loaded_metadata_files = [preprocess(d) for d in loaded_metadata_files]
+    generated_locally_metadata_files = [preprocess(d) for d in generated_locally_metadata_files]
+    expected_filepaths = list(map(lambda file_dict: file_dict["path"], loaded_metadata_files))
+    local_filepaths = list(map(lambda file_dict: file_dict["path"], generated_locally_metadata_files))
     # Files found but not expected
     extra_files = [filepath for filepath in local_filepaths if filepath not in expected_filepaths]
 

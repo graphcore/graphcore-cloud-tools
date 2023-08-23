@@ -41,7 +41,7 @@ def test_extra_file_locally(generate_data, caplog):
     with caplog.at_level(logging.INFO):
         Path(generate_data / "test_metadata_extra_file.txt").write_text("Testing metadata recognises extra file.")
         check_files_match_metadata(generate_data, True)
-    assert "Extra files found in local storage: ['/test_metadata_extra_file.txt']" in caplog.text
+    assert "Extra files found in local storage: ['test_metadata_extra_file.txt']" in caplog.text
 
 
 def test_file_size_inaccurate_in_metadata(generate_data, caplog):
@@ -52,7 +52,7 @@ def test_file_size_inaccurate_in_metadata(generate_data, caplog):
         create_metadata_file(data, generate_data)
         check_files_match_metadata(generate_data, True)
         change_dict = {
-            "path": "/test_metadata.txt",
+            "path": "test_metadata.txt",
             "key": "size",
             "gradient_metadata.json value": "100",
             "local value": "22",
