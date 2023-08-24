@@ -9,7 +9,9 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-    container: graphcore/pytorch-paperspace:latest
+    container:
+      image: graphcore/pytorch-paperspace:latest
+      options: --privileged
     outputs:
       summary: ${{ steps.output.outputs.summary }}
     env:
