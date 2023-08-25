@@ -327,8 +327,8 @@ def copy_graphcore_s3(args):
     )
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
+def symlink_arguments(parser = argparse.ArgumentParser()):
+
     parser.add_argument(
         "--gradient-dataset", action="store_true", help="Use gradient datasets rather than S3 storage access"
     )
@@ -339,13 +339,11 @@ def parse_args():
     )
     parser.add_argument("--max-concurrency", default=1, type=int, help="S3 maximum concurrency")
     parser.add_argument("--config-file", default=str(Path(".").resolve().parent / "symlink_config.json"))
-
-    args = parser.parse_args()
-    return args
+    return parser
 
 
 if __name__ == "__main__":
-    args = parse_args()
+    args = symlink_arguments().parse_args()
     try:
         print("Starting disk usage \n", subprocess.check_output(["df", "-h"]).decode())
     except:

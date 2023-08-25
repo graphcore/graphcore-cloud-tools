@@ -19,3 +19,10 @@ def test_symlink_command(symlink_config):
         [sys.executable, "-m", "graphcore_cloud_tools", "paperspace", "symlinks", "--path", f"{symlink_config}"],
         cwd=str(REPO_ROOT),
     )
+
+
+def test_healthcheck_command(tmp_path):
+    testutils.run_command_fail_explicitly(
+        [sys.executable, "-m", "graphcore_cloud_tools.paperspace_utils.health_check", "--log-folder", f"{tmp_path}"],
+        cwd=str(REPO_ROOT),
+    )
