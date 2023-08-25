@@ -9,7 +9,7 @@ def paperspace_parser(parser: argparse.ArgumentParser):
     """Add paperspace arguments to argparse parser"""
     subparsers = parser.add_subparsers(dest="option")
     symlinks_subparser = subparsers.add_parser("symlinks")
-    parse_symlinks_args(symlinks_subparser)
+    symlink_datasets_and_caches.symlink_arguments(symlinks_subparser)
 
 
 def run_paperspace(args: argparse.Namespace):
