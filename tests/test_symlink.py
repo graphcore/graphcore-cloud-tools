@@ -36,7 +36,7 @@ def test_files_are_visible_in_symlink_folder(symlink_config: pathlib.Path):
             )
 
     # Create the symlinks
-    symlink_datasets_and_caches.symlink_gradient_datasets(argparse.Namespace(path=str(symlink_config)))
+    symlink_datasets_and_caches.symlink_gradient_datasets(argparse.Namespace(config_file=str(symlink_config)))
 
     # Get the list of files in the source directories
     expected_paths = []

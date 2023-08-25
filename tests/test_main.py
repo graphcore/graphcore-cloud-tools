@@ -16,7 +16,7 @@ symlink_config = test_symlink.symlink_config
 def test_symlink_command(symlink_config):
 
     testutils.run_command_fail_explicitly(
-        [sys.executable, "-m", "graphcore_cloud_tools", "paperspace", "symlinks", "--path", f"{symlink_config}"],
+        [sys.executable, "-m", "graphcore_cloud_tools", "paperspace", "symlinks", "--config-file", f"{symlink_config}"],
         cwd=str(REPO_ROOT),
     )
 
