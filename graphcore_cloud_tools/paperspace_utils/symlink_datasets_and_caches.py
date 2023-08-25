@@ -16,11 +16,11 @@ import boto3
 from boto3.s3.transfer import TransferConfig
 import argparse
 
-FUSEOVERLAY_ROOT = os.getenv("SYMLINK_FUSE_ROOTDIR", "/fusedoverlay")
-S3_DATASETS_DIR = os.getenv("S3_DATASETS_DIR")
-# A list of semi-colon separated endpoints
-AWS_ENDPOINT = os.getenv("DATASET_S3_DOWNLOAD_ENDPOINT", "http://10.12.17.246:8000")
-AWS_CREDENTIAL = os.getenv("DATASET_S3_DOWNLOAD_B64_CREDENTIAL")
+# environment variables which can be used to configure the execution of the program
+FUSEOVERLAY_ROOT_ENV_VAR = "SYMLINK_FUSE_ROOTDIR"  # must be a writeable directory
+S3_DATASETS_DIR_ENV_VAR = "S3_DATASETS_DIR"  # must be a writeable directory with space to download all requested files
+AWS_ENDPOINT_ENV_VAR = "DATASET_S3_DOWNLOAD_ENDPOINT"  # A list of semi-colon separated endpoints to cycle between
+AWS_CREDENTIAL_ENV_VAR = "DATASET_S3_DOWNLOAD_B64_CREDENTIAL"  # See confluence
 
 
 def check_dataset_is_mounted(source_dirs_list: List[str]) -> List[str]:
@@ -50,7 +50,7 @@ def create_overlays(source_dirs_exist_paths: List[str], target_dir: str) -> subp
     print("-" * 100)
 
     Path(target_dir).mkdir(parents=True, exist_ok=True)
-
+    FUSEOVERLAY_ROOT = os.getenv(FUSEOVERLAY_ROOT_ENV_VAR, "/fusedoverlay")
     # Use this path construction as pathlib resolves 'path1 / "/path"' -> "/path"
     workdir = Path(FUSEOVERLAY_ROOT) / f"workdirs/{source_dirs_exist_paths[0]}"
     workdir.mkdir(parents=True, exist_ok=True)
@@ -114,11 +114,12 @@ def symlink_gradient_datasets(args):
 
 def get_valid_aws_endpoints():
     # Check which endpoint should be used based on if we can directly access or not
+    AWS_ENDPOINT = os.getenv(AWS_ENDPOINT_ENV_VAR, "http://10.12.17.246:8000")
     aws_endpoints = AWS_ENDPOINT.split(";")
     valid_aws_endpoints = []
     for aws_endpoint in aws_endpoints:
         try:
-            subprocess.check_output(["curl", aws_endpoint], timeout=3)
+            subprocess.check_output(["curl", aws_endpoint], timeout=5)
             print(f"Validated endpoint: {aws_endpoint}")
             valid_aws_endpoints.append(aws_endpoint)
         except subprocess.TimeoutExpired:
@@ -130,9 +131,10 @@ def get_valid_aws_endpoints():
 
 
 def prepare_cred():
+    aws_credential = os.getenv(AWS_CREDENTIAL_ENV_VAR)
     read_only = (
-        AWS_CREDENTIAL
-        if AWS_CREDENTIAL
+        aws_credential
+        if aws_credential
         else """W2djZGF0YS1yXQphd3NfYWNjZXNzX2tleV9pZCA9IDJaRUFVQllWWThCQVkwODlG
 V0FICmF3c19zZWNyZXRfYWNjZXNzX2tleSA9IDZUbDdIbUh2cFhjdURkRmd5NlBV
 Q0t5bTF0NmlMVVBCWWlZRFYzS2MK
@@ -145,6 +147,10 @@ Q0t5bTF0NmlMVVBCWWlZRFYzS2MK
     if "gcdata-r" not in creds_file.read_text():
         with open(creds_file, "ab") as f:
             f.write(cred_bytes)
+
+
+def encode_cred(plain_text_cred:str) -> str:
+    return base64.b64encode(plain_text_cred.encode()).decode()
 
 
 def download_dataset_from_s3(source_dirs_list: List[str]) -> List[str]:
@@ -181,7 +187,7 @@ class GradientDatasetFile(NamedTuple):
     def from_response(cls, s3_response: dict):
         bucket_name: str = f"s3://{s3_response['Name']}"
         s3_prefix = s3_response["Prefix"]
-        local_root = S3_DATASETS_DIR
+        local_root = os.getenv(S3_DATASETS_DIR_ENV_VAR, "/graphcore-gradient-datasets")
         for pre in s3_prefix.split("/"):
             if pre not in local_root:
                 local_root = f"{local_root}/{pre}"
