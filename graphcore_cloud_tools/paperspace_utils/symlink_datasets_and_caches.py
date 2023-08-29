@@ -22,6 +22,7 @@ S3_DATASETS_DIR_ENV_VAR = "S3_DATASETS_DIR"  # must be a writeable directory wit
 AWS_ENDPOINT_ENV_VAR = "DATASET_S3_DOWNLOAD_ENDPOINT"  # A list of semi-colon separated endpoints to cycle between
 AWS_CREDENTIAL_ENV_VAR = "DATASET_S3_DOWNLOAD_B64_CREDENTIAL"  # See confluence
 
+S3_DATASET_FOLDER = "graphcore-gradient-datasets"
 
 def check_dataset_is_mounted(source_dirs_list: List[str]) -> List[str]:
     source_dirs_exist_paths = []
@@ -152,7 +153,8 @@ Q0t5bTF0NmlMVVBCWWlZRFYzS2MK
 """
     )
     cred_bytes = base64.b64decode(read_only)
-    creds_file = Path("/root/.aws/credentials")
+    home = os.getenv("HOME", "/root")
+    creds_file = Path(f"{home}/.aws/credentials")
     creds_file.parent.mkdir(exist_ok=True, parents=True)
     creds_file.touch(exist_ok=True)
     if "gcdata-r" not in creds_file.read_text():
@@ -221,10 +223,11 @@ class GradientDatasetFile(NamedTuple):
 
 
 def list_files(client: "boto3.Client", dataset_name: str):
-    dataset_prefix = f"graphcore-gradient-datasets/{dataset_name}"
+    dataset_prefix = f"{S3_DATASET_FOLDER}/{dataset_name}"
     out = client.list_objects_v2(Bucket="sdk", MaxKeys=10000, Prefix=dataset_prefix)
     assert out["ResponseMetadata"].get("HTTPStatusCode", 200) == 200, "Response did not have HTTPS status 200"
     assert not out["IsTruncated"], "Handling of truncated response is not handled yet"
+    assert "Contents" in out, f"Dataset '{dataset_name}' not found at 's3://sdk/{dataset_prefix}'"
     return GradientDatasetFile.from_response(out)
 
 
@@ -235,7 +238,7 @@ def apply_symlink(
     return [file._replace(local_root=source_target[file.local_root]) for file in list_files]
 
 
-class DownloadOuput(NamedTuple):
+class DownloadOutput(NamedTuple):
     elapsed_seconds: float
     gigabytes: float
 
@@ -275,7 +278,7 @@ def download_file(
     elapsed = time.time() - start
     size_gb = file.size / (1024**3)
     print(f"Finished {progress}: {size_gb:.2f}GB in {elapsed:.0f}s ({size_gb/elapsed:.3f} GB/s) for file {target}")
-    return DownloadOuput(elapsed, size_gb)
+    return DownloadOutput(elapsed, size_gb)
 
 
 def parallel_download_dataset_from_s3(
