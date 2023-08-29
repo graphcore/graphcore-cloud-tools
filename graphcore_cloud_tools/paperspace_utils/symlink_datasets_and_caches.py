@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import os
 import warnings
-from typing import List, NamedTuple, Dict
+from typing import List, NamedTuple, Dict, Optional, Tuple
 import base64
 import itertools
 import time
@@ -15,6 +15,8 @@ import random
 import boto3
 from boto3.s3.transfer import TransferConfig
 import argparse
+import logging
+
 
 # environment variables which can be used to configure the execution of the program
 FUSEOVERLAY_ROOT_ENV_VAR = "SYMLINK_FUSE_ROOTDIR"  # must be a writeable directory
@@ -23,6 +25,14 @@ AWS_ENDPOINT_ENV_VAR = "DATASET_S3_DOWNLOAD_ENDPOINT"  # A list of semi-colon se
 AWS_CREDENTIAL_ENV_VAR = "DATASET_S3_DOWNLOAD_B64_CREDENTIAL"  # See confluence
 
 S3_DATASET_FOLDER = "graphcore-gradient-datasets"
+
+class MissingDataset(Exception):
+    pass
+
+
+class S3DownloadFailed(Exception):
+    pass
+
 
 def check_dataset_is_mounted(source_dirs_list: List[str]) -> List[str]:
     source_dirs_exist_paths = []
@@ -227,7 +237,8 @@ def list_files(client: "boto3.Client", dataset_name: str):
     out = client.list_objects_v2(Bucket="sdk", MaxKeys=10000, Prefix=dataset_prefix)
     assert out["ResponseMetadata"].get("HTTPStatusCode", 200) == 200, "Response did not have HTTPS status 200"
     assert not out["IsTruncated"], "Handling of truncated response is not handled yet"
-    assert "Contents" in out, f"Dataset '{dataset_name}' not found at 's3://sdk/{dataset_prefix}'"
+    if  "Contents" not in out:
+        raise MissingDataset(f"Dataset '{dataset_name}' not found at 's3://sdk/{dataset_prefix}'")
     return GradientDatasetFile.from_response(out)
 
 
@@ -241,6 +252,7 @@ def apply_symlink(
 class DownloadOutput(NamedTuple):
     elapsed_seconds: float
     gigabytes: float
+    error: Optional[Exception]
 
 
 def download_file_iterate_endpoints(aws_endpoints: List[str], *args, **kwargs):
@@ -265,25 +277,31 @@ def download_file(
     config = TransferConfig(max_concurrency=max_concurrency)
     target = Path(file.local_root).resolve() / file.relative_file
     target.parent.mkdir(exist_ok=True, parents=True)
-    if not use_cli:
-        s3client.download_file(bucket_name, file.s3file, str(target), Config=config)
-    else:
-        cmd = (
-            f"aws s3 --endpoint-url {aws_endpoint} --profile {aws_credential} "
-            f"cp s3://{bucket_name}/{file.s3file}"
-            f" {target}"
-        ).split()
-        print(cmd)
-        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    exception = None
+    try:
+        if not use_cli:
+            s3client.download_file(bucket_name, file.s3file, str(target), Config=config)
+        else:
+            cmd = (
+                f"aws s3 --endpoint-url {aws_endpoint} --profile {aws_credential} "
+                f"cp s3://{bucket_name}/{file.s3file}"
+                f" {target}"
+            ).split()
+            print(cmd)
+            out = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            if out.returncode != 0:
+                raise S3DownloadFailed(f"Command {cmd} failed with return code {out.returncode}")
+    except Exception as error:
+        exception = error
     elapsed = time.time() - start
     size_gb = file.size / (1024**3)
     print(f"Finished {progress}: {size_gb:.2f}GB in {elapsed:.0f}s ({size_gb/elapsed:.3f} GB/s) for file {target}")
-    return DownloadOutput(elapsed, size_gb)
+    return DownloadOutput(elapsed, size_gb, exception)
 
 
 def parallel_download_dataset_from_s3(
     directory_map: Dict[str, List[str]], *, max_concurrency=1, num_concurrent_downloads=1, symlink=True, use_cli=False, endpoint_fallback=False
-) -> List[GradientDatasetFile]:
+) -> Tuple[List[GradientDatasetFile], Dict[str, List[str]]]:
     aws_credential = "gcdata-r"
     aws_endpoints = get_valid_aws_endpoints(endpoint_fallback)
 
@@ -293,10 +311,15 @@ def parallel_download_dataset_from_s3(
 
     files_to_download: List[GradientDatasetFile] = []
     source_dirs_list = list(itertools.chain.from_iterable(directory_map.values()))
+    failed_datasets = []
     for source_dir in source_dirs_list:
         source_dir_path = Path(source_dir)
         dataset_name = source_dir_path.name
-        files_to_download.extend(list_files(s3, dataset_name))
+        try:
+            files_to_download.extend(list_files(s3, dataset_name))
+        except MissingDataset as error:
+            logging.error(f"{dataset_name} is missing - skipping download. Error: {error}")
+            failed_datasets.append(dataset_name)
 
     num_files = len(files_to_download)
     print(f"Downloading {num_files} from {len(source_dirs_list)} datasets")
@@ -317,12 +340,27 @@ def parallel_download_dataset_from_s3(
             )
             for i, file in enumerate(files_to_download)
         ]
+
+    failed_downloads = []
+    for file, future_result in zip(files_to_download, outputs):
+        result = future_result.result()
+        if result.error is not None:
+            failed_downloads.append(f"{file} failed to download with {result.error}")
+            logging.error(failed_downloads[-1])
     total_elapsed = time.time() - start
     total_download_size = sum(o.result().gigabytes for o in outputs)
-    print(
-        f"Finished downloading {num_files} files: {total_download_size:.2f} GB in {total_elapsed:.2f}s ({total_download_size/total_elapsed:.2f}  GB/s)"
-    )
-    return files_to_download
+    if not failed_downloads:
+        print(
+            f"Finished downloading {num_files} files: {total_download_size:.2f} GB in {total_elapsed:.2f}s ({total_download_size/total_elapsed:.2f}  GB/s)"
+        )
+    else:
+        logging.error(f"{len(failed_downloads)}/{len(files_to_download)} files failed to download.")
+    errors = {}
+    if failed_datasets:
+        errors["datasets"] = failed_datasets
+    if failed_downloads:
+        errors["files"] = failed_downloads
+    return files_to_download, errors
 
 
 def copy_graphcore_s3(args):
@@ -333,13 +371,18 @@ def copy_graphcore_s3(args):
     json_data = os.path.expandvars(json_data)
     config = json.loads(json_data)
     prepare_cred()
-    source_dirs_exist_paths = parallel_download_dataset_from_s3(
+    source_dirs_exist_paths, errors = parallel_download_dataset_from_s3(
         config,
         max_concurrency=args.max_concurrency,
         num_concurrent_downloads=args.num_concurrent_downloads,
         symlink=args.no_symlink,
         endpoint_fallback=args.public_endpoint,
     )
+    if errors:
+        raise RuntimeError(
+            "There were errors during the dataset download from S3, check logs for details.\n"
+            f"Arguments were: {args}\nconfig: {config}\nerrors: {errors}"
+        )
 
 
 def symlink_arguments(parser = argparse.ArgumentParser()):

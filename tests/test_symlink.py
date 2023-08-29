@@ -130,11 +130,11 @@ def test_s3_linking(monkeypatch, s3_datasets):
     monkeypatch.setenv(symlink_datasets_and_caches.AWS_ENDPOINT_ENV_VAR, endpoint_url)
     config = json.loads(config_file.read_text())
     symlink_datasets_and_caches.prepare_cred()
-    source_dirs_exist_paths = symlink_datasets_and_caches.parallel_download_dataset_from_s3(
+    source_dirs_exist_paths, errors = symlink_datasets_and_caches.parallel_download_dataset_from_s3(
         config,
         max_concurrency=1,
         num_concurrent_downloads=1,
         symlink=True,
         endpoint_fallback=False,
     )
-    assert False
+    assert not errors
