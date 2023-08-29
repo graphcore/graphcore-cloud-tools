@@ -125,7 +125,7 @@ def get_valid_aws_endpoints(endpoint_fallback=False):
         except subprocess.TimeoutExpired:
             print(f"End point could not be reached: {aws_endpoint}")
         except subprocess.CalledProcessError as error:
-            if "exit status 7" not in f"{error}":
+            if "exit status 7" in f"{error}":
                 print(f"End point cannot be reached from current executor: {aws_endpoint}")
             else:
                 raise
