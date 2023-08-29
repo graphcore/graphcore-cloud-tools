@@ -26,7 +26,6 @@ def test_symlink_command(symlink_config):
     )
 
 
-
 def test_s3_symlink_command(settings_file, s3_datasets, monkeypatch):
     """Test the direct S3 overlay method"""
     config_file, endpoint_url = s3_datasets
@@ -36,8 +35,9 @@ def test_s3_symlink_command(settings_file, s3_datasets, monkeypatch):
         cwd=str(REPO_ROOT),
     )
 
-def test_healthcheck_command(tmp_path, settings_file):
+
+def test_healthcheck_command(tmp_path, settings_file, symlink_config):
     testutils.run_command_fail_explicitly(
-        [sys.executable, "-m", "graphcore_cloud_tools.paperspace_utils.health_check", "--log-folder", f"{tmp_path}"],
+        [sys.executable, "-m", "graphcore_cloud_tools.paperspace_utils.health_check", "--log-folder", f"{tmp_path}", "--gradient-settings-file", str(settings_file), "--symlink-config-file", str(symlink_config)],
         cwd=str(REPO_ROOT),
     )
