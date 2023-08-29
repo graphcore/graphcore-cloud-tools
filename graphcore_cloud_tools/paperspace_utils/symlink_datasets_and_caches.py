@@ -112,7 +112,7 @@ def symlink_gradient_datasets(args):
         )
 
 
-def get_valid_aws_endpoints():
+def get_valid_aws_endpoints(endpoint_fallback=False):
     # Check which endpoint should be used based on if we can directly access or not
     AWS_ENDPOINT = os.getenv(AWS_ENDPOINT_ENV_VAR, "http://10.12.17.246:8000")
     aws_endpoints = AWS_ENDPOINT.split(";")
@@ -124,7 +124,18 @@ def get_valid_aws_endpoints():
             valid_aws_endpoints.append(aws_endpoint)
         except subprocess.TimeoutExpired:
             print(f"End point could not be reached: {aws_endpoint}")
+        except subprocess.CalledProcessError as error:
+            if "exit status 7" not in f"{error}":
+                print(f"End point cannot be reached from current executor: {aws_endpoint}")
+            else:
+                raise
     if not valid_aws_endpoints:
+        if not endpoint_fallback:
+            raise ValueError(
+                f"None of the specified endpoints were available: {AWS_ENDPOINT}\n{aws_endpoints}"
+                "\n If you are using this code interactively you may use the '--public-endpoint'"
+                "argument to fall back to the Paperspace production S3 endpoint."
+            )
         valid_aws_endpoints = ["https://s3.clehbtvty.paperspacegradient.com"]
         print("Using global endpoint")
     return valid_aws_endpoints
@@ -268,10 +279,10 @@ def download_file(
 
 
 def parallel_download_dataset_from_s3(
-    directory_map: Dict[str, List[str]], *, max_concurrency=1, num_concurrent_downloads=1, symlink=True, use_cli=False
+    directory_map: Dict[str, List[str]], *, max_concurrency=1, num_concurrent_downloads=1, symlink=True, use_cli=False, endpoint_fallback=False
 ) -> List[GradientDatasetFile]:
     aws_credential = "gcdata-r"
-    aws_endpoints = get_valid_aws_endpoints()
+    aws_endpoints = get_valid_aws_endpoints(endpoint_fallback)
 
     s3 = boto3.Session(profile_name=aws_credential).client("s3", endpoint_url=aws_endpoints[0])
 
@@ -324,6 +335,7 @@ def copy_graphcore_s3(args):
         max_concurrency=args.max_concurrency,
         num_concurrent_downloads=args.num_concurrent_downloads,
         symlink=args.no_symlink,
+        endpoint_fallback=args.public_endpoint,
     )
 
 
@@ -339,6 +351,7 @@ def symlink_arguments(parser = argparse.ArgumentParser()):
     )
     parser.add_argument("--max-concurrency", default=1, type=int, help="S3 maximum concurrency")
     parser.add_argument("--config-file", default=str(Path(".").resolve().parent / "symlink_config.json"))
+    parser.add_argument("--public-endpoint", action="store_true", help="Use endpoint fallback")
     return parser
 
 
