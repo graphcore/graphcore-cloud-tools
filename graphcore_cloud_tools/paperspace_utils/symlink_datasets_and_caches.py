@@ -16,6 +16,7 @@ import boto3
 from boto3.s3.transfer import TransferConfig
 import argparse
 import logging
+import yaml
 
 
 # environment variables which can be used to configure the execution of the program
@@ -300,7 +301,7 @@ def download_file(
 
 
 def parallel_download_dataset_from_s3(
-    directory_map: Dict[str, List[str]], *, max_concurrency=1, num_concurrent_downloads=1, symlink=True, use_cli=False, endpoint_fallback=False
+    datasets: List[str], directory_map: Dict[str, List[str]], *, max_concurrency=1, num_concurrent_downloads=1, symlink=True, use_cli=False, endpoint_fallback=False
 ) -> Tuple[List[GradientDatasetFile], Dict[str, List[str]]]:
     aws_credential = "gcdata-r"
     aws_endpoints = get_valid_aws_endpoints(endpoint_fallback)
@@ -310,19 +311,18 @@ def parallel_download_dataset_from_s3(
     # Disable thread use/transfer concurrency
 
     files_to_download: List[GradientDatasetFile] = []
-    source_dirs_list = list(itertools.chain.from_iterable(directory_map.values()))
+
     failed_datasets = []
-    for source_dir in source_dirs_list:
-        source_dir_path = Path(source_dir)
-        dataset_name = source_dir_path.name
+    for dataset in datasets:
+
         try:
-            files_to_download.extend(list_files(s3, dataset_name))
+            files_to_download.extend(list_files(s3, dataset))
         except MissingDataset as error:
-            logging.error(f"{dataset_name} is missing - skipping download. Error: {error}")
-            failed_datasets.append(dataset_name)
+            logging.error(f"{dataset} is missing - skipping download. Error: {error}")
+            failed_datasets.append(dataset)
 
     num_files = len(files_to_download)
-    print(f"Downloading {num_files} from {len(source_dirs_list)} datasets")
+    print(f"Downloading {num_files} from {len(datasets)} datasets")
     if symlink:
         files_to_download = apply_symlink(files_to_download, directory_map)
 
@@ -363,16 +363,34 @@ def parallel_download_dataset_from_s3(
     return files_to_download, errors
 
 
+def read_gradient_settings(gradient_settings_file: Path) -> List[str]:
+    """ Reads the gradient settings files
+
+    integrations:
+        gcl:
+            type: dataset
+            ref: paperspace/ds7me5hgjbfht6q:8ngwr2a
+        poplar-executables-hf-3-3:
+            ...
+    """
+    with open(gradient_settings_file) as f:
+        my_dict = yaml.safe_load(f)
+        datasets = my_dict["integrations"].keys()
+    return list(datasets)
+
+
 def copy_graphcore_s3(args):
     # read in symlink config file
     json_data = Path(args.config_file).read_text()
 
     # substitute environment variables in the JSON data
     json_data = os.path.expandvars(json_data)
-    config = json.loads(json_data)
+    symlink_config = json.loads(json_data)
+    datasets = read_gradient_settings(args.gradient_settings_file)
     prepare_cred()
     source_dirs_exist_paths, errors = parallel_download_dataset_from_s3(
-        config,
+        datasets,
+        symlink_config,
         max_concurrency=args.max_concurrency,
         num_concurrent_downloads=args.num_concurrent_downloads,
         symlink=args.no_symlink,
@@ -381,7 +399,7 @@ def copy_graphcore_s3(args):
     if errors:
         raise RuntimeError(
             "There were errors during the dataset download from S3, check logs for details.\n"
-            f"Arguments were: {args}\nconfig: {config}\nerrors: {errors}"
+            f"Arguments were: {args}\ndatasets: {datasets}\nconfig: {symlink_config}\nerrors: {errors}"
         )
 
 
@@ -397,6 +415,11 @@ def symlink_arguments(parser = argparse.ArgumentParser()):
     )
     parser.add_argument("--max-concurrency", default=1, type=int, help="S3 maximum concurrency")
     parser.add_argument("--config-file", default=str(Path(".").resolve().parent / "symlink_config.json"))
+    parser.add_argument(
+        "--gradient-settings-file",
+        default=str(Path(".").resolve().parent / "settings.yaml"),
+        help="Path to gradient settings.yaml file",
+    )
     parser.add_argument("--public-endpoint", action="store_true", help="Use endpoint fallback")
     return parser
 

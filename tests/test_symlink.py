@@ -8,19 +8,33 @@ from graphcore_cloud_tools.paperspace_utils import symlink_datasets_and_caches
 from moto.server import ThreadedMotoServer
 import boto3
 import subprocess
-
+import yaml
 
 @pytest.fixture
-def symlink_config(tmp_path: pathlib.Path, monkeypatch):
-    config = tmp_path / "symlink_config.json"
+def fake_data(tmp_path: pathlib.Path):
     source = tmp_path / "source"
     source2 = tmp_path / "source2"
-    target = tmp_path / "target"
     source.mkdir(parents=True)
     source2.mkdir(parents=True)
     (source / "test1.txt").write_text("test file 1")
     (source2 / "test2.txt").write_text("test file 2")
-    config.write_text(json.dumps({str(target): [str(source), str(source2)]}))
+    return [source, source2]
+
+
+@pytest.fixture
+def settings_file(tmp_path: pathlib.Path, fake_data: List[pathlib.Path]):
+    config = tmp_path / "settings.yaml"
+    settings = dict(integrations={data.name: dict(type="dataset", ref="fake:data") for data in fake_data})
+    with open(config, "w") as f:
+        yaml.dump(settings, f)
+    return config
+
+
+@pytest.fixture
+def symlink_config(tmp_path: pathlib.Path, fake_data: List[pathlib.Path], monkeypatch):
+    config = tmp_path / "symlink_config.json"
+    target = tmp_path / "target"
+    config.write_text(json.dumps({str(target): [str(f) for f in fake_data]}))
     fuse_root = config.parent / "fusedoverlay"
     fuse_root.mkdir()
     monkeypatch.setenv("SYMLINK_FUSE_ROOTDIR", str(fuse_root))
@@ -125,12 +139,14 @@ def s3_datasets(symlink_config: pathlib.Path, s3_endpoint_url: str):
     return (new_config, s3_endpoint_url)
 
 
-def test_s3_linking(monkeypatch, s3_datasets):
+def test_s3_linking(monkeypatch, s3_datasets, settings_file):
     config_file, endpoint_url = s3_datasets
     monkeypatch.setenv(symlink_datasets_and_caches.AWS_ENDPOINT_ENV_VAR, endpoint_url)
     config = json.loads(config_file.read_text())
+    datasets = symlink_datasets_and_caches.read_gradient_settings(settings_file)
     symlink_datasets_and_caches.prepare_cred()
     source_dirs_exist_paths, errors = symlink_datasets_and_caches.parallel_download_dataset_from_s3(
+        datasets,
         config,
         max_concurrency=1,
         num_concurrent_downloads=1,
