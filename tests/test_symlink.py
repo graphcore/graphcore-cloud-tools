@@ -1,5 +1,5 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
-from typing import Dict, List
+from typing import Dict, List, Callable
 import pathlib
 import pytest
 import json
@@ -41,7 +41,16 @@ def symlink_config(tmp_path: pathlib.Path, fake_data: List[pathlib.Path], monkey
     return config
 
 
-def test_files_are_visible_in_symlink_folder(symlink_config: pathlib.Path):
+def check_files_are_visible_in_symlink_folder(function_under_test: Callable, symlink_config: pathlib.Path):
+    """Test helper which checks that symlinking scripts have the right behaviour:
+
+    Checks:
+    - Source files are not modified
+    - No files are missing
+    - No files are added
+    """
+    # root_path is used to make errors more readable with shorter paths
+    root_path = symlink_config.parent
     symlink_def: Dict[str, List[str]] = json.loads(symlink_config.read_text())
     expected_before_symlink_paths = []
     for target_path, source_paths in symlink_def.items():
@@ -53,10 +62,10 @@ def test_files_are_visible_in_symlink_folder(symlink_config: pathlib.Path):
             )
 
     # Create the symlinks
-    symlink_datasets_and_caches.symlink_gradient_datasets(argparse.Namespace(config_file=str(symlink_config)))
+    out = function_under_test()
 
     # Get the list of files in the source directories
-    expected_paths = []
+    expected_paths:List[pathlib.Path] = []
     for target_path, source_paths in symlink_def.items():
         target_path = pathlib.Path(target_path).resolve()
         for source_path in source_paths:
@@ -72,25 +81,38 @@ def test_files_are_visible_in_symlink_folder(symlink_config: pathlib.Path):
         found.extend([str(f) for f in target_path.rglob("*")])
 
     # Check that the source files haven't changed
-    files_added_by_symlinking = [e for e in expected_paths if e not in expected_before_symlink_paths]
+    files_added_by_symlinking = [e.relative_to(root_path) for e in expected_paths if e not in expected_before_symlink_paths]
     assert (
         not files_added_by_symlinking
     ), f"Symlinking created files or folders in read/only space {files_added_by_symlinking}"
     # Check that the symlink files are there
-    missing_files = [e for e in expected_paths if e not in found]
+    missing_files = [e.relative_to(root_path) for e in expected_paths if e not in found]
     assert not missing_files, f"There were missing files: {missing_files}\n found: {found}\n expected: {expected_paths}"
-
+    extra_files = [pathlib.Path(e).relative_to(root_path) for e in found if e not in expected_paths]
+    assert not extra_files, f"There were extra files: {extra_files}\n found: {found}\n expected: {expected_paths}"
+    return out
 
 @pytest.fixture
 def s3_endpoint_url():
+    """Uses moto to start a mocked S3 endpoint on a local port"""
     port = 7000
     endpoint_url=f"http://127.0.0.1:{port}"
     started_server = False
     i = 0
+    # try ports from 7000 to 8000 for a valid one
+    # Finds an open port to start the server on
     for i in range(1000):
+        # First: check that the port is closed (curl should fail or we skip to the next port)
+        try:
+            subprocess.check_output(["curl", endpoint_url], timeout=5)
+            continue
+        except:
+            pass
+        # Start the S3 service
         server = ThreadedMotoServer(port=port + i)
         server.start()
         endpoint_url=f"http://127.0.0.1:{port + i}"
+        # CHeck that the server is working
         try:
             subprocess.check_output(["curl", endpoint_url], timeout=5)
             started_server = True
@@ -138,19 +160,27 @@ def s3_datasets(symlink_config: pathlib.Path, s3_endpoint_url: str):
     new_config.write_text(json.dumps(new_symlink_def))
     return (new_config, s3_endpoint_url)
 
+def test_fuse_overlay_symlinking(symlink_config):
+    def function():
+        return symlink_datasets_and_caches.symlink_gradient_datasets(argparse.Namespace(config_file=str(symlink_config)))
 
-def test_s3_linking(monkeypatch, s3_datasets, settings_file):
-    config_file, endpoint_url = s3_datasets
-    monkeypatch.setenv(symlink_datasets_and_caches.AWS_ENDPOINT_ENV_VAR, endpoint_url)
-    config = json.loads(config_file.read_text())
-    datasets = symlink_datasets_and_caches.read_gradient_settings(settings_file)
-    symlink_datasets_and_caches.prepare_cred()
-    source_dirs_exist_paths, errors = symlink_datasets_and_caches.parallel_download_dataset_from_s3(
-        datasets,
-        config,
-        max_concurrency=1,
-        num_concurrent_downloads=1,
-        symlink=True,
-        endpoint_fallback=False,
-    )
+    check_files_are_visible_in_symlink_folder(function, symlink_config)
+
+
+def test_s3_linking(monkeypatch, s3_datasets, settings_file, symlink_config):
+    def function_under_test():
+        config_file, endpoint_url = s3_datasets
+        monkeypatch.setenv(symlink_datasets_and_caches.AWS_ENDPOINT_ENV_VAR, endpoint_url)
+        config = json.loads(config_file.read_text())
+        datasets = symlink_datasets_and_caches.read_gradient_settings(settings_file)
+        symlink_datasets_and_caches.prepare_cred()
+        return symlink_datasets_and_caches.parallel_download_dataset_from_s3(
+            datasets,
+            config,
+            max_concurrency=1,
+            num_concurrent_downloads=1,
+            symlink=True,
+            endpoint_fallback=False,
+        )
+    source_dirs_exist_paths, errors = check_files_are_visible_in_symlink_folder(function_under_test, symlink_config)
     assert not errors

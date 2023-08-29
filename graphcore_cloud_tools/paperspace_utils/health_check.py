@@ -9,6 +9,7 @@ from .metadata_utils import check_files_match_metadata
 from pathlib import Path
 from time import time
 import argparse
+from typing import List
 
 
 def check_datasets_exist(dataset_names: [str], dirname: str):
@@ -42,7 +43,7 @@ def check_datasets_exist(dataset_names: [str], dirname: str):
     return output_dict
 
 
-def check_paths_exists(paths: [str]):
+def check_paths_exists(paths: List[str]):
     """Logs whether paths exists and returns dict of logging information"""
     symlinks_exist = []
     for path in paths:
