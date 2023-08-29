@@ -27,6 +27,7 @@ AWS_CREDENTIAL_ENV_VAR = "DATASET_S3_DOWNLOAD_B64_CREDENTIAL"  # See confluence
 
 S3_DATASET_FOLDER = "graphcore-gradient-datasets"
 
+
 class MissingDataset(Exception):
     pass
 
@@ -173,7 +174,7 @@ Q0t5bTF0NmlMVVBCWWlZRFYzS2MK
             f.write(cred_bytes)
 
 
-def encode_cred(plain_text_cred:str) -> str:
+def encode_cred(plain_text_cred: str) -> str:
     return base64.b64encode(plain_text_cred.encode()).decode()
 
 
@@ -238,7 +239,7 @@ def list_files(client: "boto3.Client", dataset_name: str):
     out = client.list_objects_v2(Bucket="sdk", MaxKeys=10000, Prefix=dataset_prefix)
     assert out["ResponseMetadata"].get("HTTPStatusCode", 200) == 200, "Response did not have HTTPS status 200"
     assert not out["IsTruncated"], "Handling of truncated response is not handled yet"
-    if  "Contents" not in out:
+    if "Contents" not in out:
         raise MissingDataset(f"Dataset '{dataset_name}' not found at 's3://sdk/{dataset_prefix}'")
     return GradientDatasetFile.from_response(out)
 
@@ -301,7 +302,14 @@ def download_file(
 
 
 def parallel_download_dataset_from_s3(
-    datasets: List[str], directory_map: Dict[str, List[str]], *, max_concurrency=1, num_concurrent_downloads=1, symlink=True, use_cli=False, endpoint_fallback=False
+    datasets: List[str],
+    directory_map: Dict[str, List[str]],
+    *,
+    max_concurrency=1,
+    num_concurrent_downloads=1,
+    symlink=True,
+    use_cli=False,
+    endpoint_fallback=False,
 ) -> Tuple[List[GradientDatasetFile], Dict[str, List[str]]]:
     aws_credential = "gcdata-r"
     aws_endpoints = get_valid_aws_endpoints(endpoint_fallback)
@@ -364,7 +372,7 @@ def parallel_download_dataset_from_s3(
 
 
 def read_gradient_settings(gradient_settings_file: Path) -> List[str]:
-    """ Reads the gradient settings files
+    """Reads the gradient settings files
 
     integrations:
         gcl:
@@ -403,7 +411,7 @@ def copy_graphcore_s3(args):
         )
 
 
-def symlink_arguments(parser = argparse.ArgumentParser()):
+def symlink_arguments(parser=argparse.ArgumentParser()):
 
     parser.add_argument(
         "--gradient-dataset", action="store_true", help="Use gradient datasets rather than S3 storage access"
@@ -440,6 +448,7 @@ def main(args):
         print("Final disk usage \n", subprocess.check_output(["df", "-h"]).decode())
     except:
         pass
+
 
 if __name__ == "__main__":
     args = symlink_arguments().parse_args()
