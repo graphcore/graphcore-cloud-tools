@@ -10,6 +10,7 @@ import boto3
 import subprocess
 import yaml
 
+
 @pytest.fixture
 def fake_data(tmp_path: pathlib.Path):
     source = tmp_path / "source"
@@ -65,7 +66,7 @@ def check_files_are_visible_in_symlink_folder(function_under_test: Callable, sym
     out = function_under_test()
 
     # Get the list of files in the source directories
-    expected_paths:List[pathlib.Path] = []
+    expected_paths: List[pathlib.Path] = []
     for target_path, source_paths in symlink_def.items():
         target_path = pathlib.Path(target_path).resolve()
         for source_path in source_paths:
@@ -81,7 +82,9 @@ def check_files_are_visible_in_symlink_folder(function_under_test: Callable, sym
         found.extend([str(f) for f in target_path.rglob("*")])
 
     # Check that the source files haven't changed
-    files_added_by_symlinking = [e.relative_to(root_path) for e in expected_paths if e not in expected_before_symlink_paths]
+    files_added_by_symlinking = [
+        e.relative_to(root_path) for e in expected_paths if e not in expected_before_symlink_paths
+    ]
     assert (
         not files_added_by_symlinking
     ), f"Symlinking created files or folders in read/only space {files_added_by_symlinking}"
@@ -92,11 +95,12 @@ def check_files_are_visible_in_symlink_folder(function_under_test: Callable, sym
     assert not extra_files, f"There were extra files: {extra_files}\n found: {found}\n expected: {expected_paths}"
     return out
 
+
 @pytest.fixture
 def s3_endpoint_url():
     """Uses moto to start a mocked S3 endpoint on a local port"""
     port = 7000
-    endpoint_url=f"http://127.0.0.1:{port}"
+    endpoint_url = f"http://127.0.0.1:{port}"
     started_server = False
     i = 0
     # try ports from 7000 to 8000 for a valid one
@@ -111,7 +115,7 @@ def s3_endpoint_url():
         # Start the S3 service
         server = ThreadedMotoServer(port=port + i)
         server.start()
-        endpoint_url=f"http://127.0.0.1:{port + i}"
+        endpoint_url = f"http://127.0.0.1:{port + i}"
         # CHeck that the server is working
         try:
             subprocess.check_output(["curl", endpoint_url], timeout=5)
@@ -134,12 +138,12 @@ def s3_datasets(symlink_config: pathlib.Path, s3_endpoint_url: str):
     bucket = "sdk"
     conn = boto3.resource("s3", endpoint_url=s3_endpoint_url)
     try:
-        conn.create_bucket(Bucket=bucket, CreateBucketConfiguration={
-                'LocationConstraint': s3_endpoint_url
-            },
+        conn.create_bucket(
+            Bucket=bucket,
+            CreateBucketConfiguration={"LocationConstraint": s3_endpoint_url},
         )
     except Exception as error:
-        if "BucketAlreadyOwnedByYou" in  str(error):
+        if "BucketAlreadyOwnedByYou" in str(error):
             pass
         else:
             raise
@@ -152,7 +156,17 @@ def s3_datasets(symlink_config: pathlib.Path, s3_endpoint_url: str):
         new_symlink_def[key] = []
         for source in sources:
             source = pathlib.Path(source)
-            out = subprocess.check_output(["aws", "s3", "sync", "--endpoint-url", s3_endpoint_url, source, f"s3://{bucket}/{symlink_datasets_and_caches.S3_DATASET_FOLDER}/{source.name}/"])
+            out = subprocess.check_output(
+                [
+                    "aws",
+                    "s3",
+                    "sync",
+                    "--endpoint-url",
+                    s3_endpoint_url,
+                    source,
+                    f"s3://{bucket}/{symlink_datasets_and_caches.S3_DATASET_FOLDER}/{source.name}/",
+                ]
+            )
             print(out)
             new_symlink_def[key].append(f"/{symlink_datasets_and_caches.S3_DATASET_FOLDER}/{source.name}")
 
@@ -160,9 +174,12 @@ def s3_datasets(symlink_config: pathlib.Path, s3_endpoint_url: str):
     new_config.write_text(json.dumps(new_symlink_def))
     return (new_config, s3_endpoint_url)
 
+
 def test_fuse_overlay_symlinking(symlink_config):
     def function():
-        return symlink_datasets_and_caches.symlink_gradient_datasets(argparse.Namespace(config_file=str(symlink_config)))
+        return symlink_datasets_and_caches.symlink_gradient_datasets(
+            argparse.Namespace(config_file=str(symlink_config))
+        )
 
     check_files_are_visible_in_symlink_folder(function, symlink_config)
 
@@ -182,5 +199,6 @@ def test_s3_linking(monkeypatch, s3_datasets, settings_file, symlink_config):
             symlink=True,
             endpoint_fallback=False,
         )
+
     source_dirs_exist_paths, errors = check_files_are_visible_in_symlink_folder(function_under_test, symlink_config)
     assert not errors
