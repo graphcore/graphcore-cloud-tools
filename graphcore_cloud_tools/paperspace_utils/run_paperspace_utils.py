@@ -21,7 +21,7 @@ def run_paperspace(args: argparse.Namespace):
 
     """
     if args.option == "symlinks":
-        symlink_datasets_and_caches.symlink_gradient_datasets(args)
+        symlink_datasets_and_caches.main(args)
     elif args.option == "health_check":
         run_health_check(args)
 

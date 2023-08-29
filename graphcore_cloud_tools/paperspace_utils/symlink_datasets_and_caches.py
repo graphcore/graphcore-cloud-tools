@@ -342,8 +342,7 @@ def symlink_arguments(parser = argparse.ArgumentParser()):
     return parser
 
 
-if __name__ == "__main__":
-    args = symlink_arguments().parse_args()
+def main(args):
     try:
         print("Starting disk usage \n", subprocess.check_output(["df", "-h"]).decode())
     except:
@@ -359,3 +358,7 @@ if __name__ == "__main__":
         print("Final disk usage \n", subprocess.check_output(["df", "-h"]).decode())
     except:
         pass
+
+if __name__ == "__main__":
+    args = symlink_arguments().parse_args()
+    main(args)
