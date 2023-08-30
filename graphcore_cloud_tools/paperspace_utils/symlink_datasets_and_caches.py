@@ -202,8 +202,7 @@ def download_dataset_from_s3(source_dirs_list: List[str]) -> List[str]:
 
 class GradientDatasetFile(NamedTuple):
     s3file: str
-    relative_file: str
-    local_root: str
+    local_file: str
     size: int = 0
 
     @classmethod
@@ -222,10 +221,10 @@ class GradientDatasetFile(NamedTuple):
             s3_object_name: str = s3_content_response["Key"]
             full_s3file = f"{bucket_name}{s3_object_name}"
             relative_file = s3_object_name.replace(s3_prefix, "").strip("/")
+            target = Path(local_root).resolve() / relative_file
             return cls(
                 s3file=s3_object_name,
-                relative_file=relative_file,
-                local_root=local_root,
+                local_file=str(target),
                 size=s3_content_response.get("Size", 0),
             )
 
@@ -245,9 +244,20 @@ def list_files(client: "boto3.Client", dataset_name: str):
 def apply_symlink(
     list_files: List[GradientDatasetFile], directory_map: Dict[str, List[str]]
 ) -> List[GradientDatasetFile]:
-    source_target = {source: target for target, sources in directory_map.items() for source in sources}
-    return [file._replace(local_root=source_target[file.local_root]) for file in list_files]
-
+    def with_trailing_slash(path):
+        return path if path[-1] == "/" else f"{path}/"
+    source_target = {
+        with_trailing_slash(source): with_trailing_slash(target)
+        for target, sources in directory_map.items() for source in sources
+    }
+    symlinked_list = []
+    for file in list_files:
+        for source, new_root in source_target.items():
+            local_file = file.local_file
+            if source in local_file:
+                local_file = local_file.replace(source, new_root)
+            symlinked_list.append(file._replace(local_file=local_file))
+    return symlinked_list
 
 class DownloadOutput(NamedTuple):
     elapsed_seconds: float
@@ -275,7 +285,7 @@ def download_file(
     print(f"Downloading {progress} {file}")
     start = time.time()
     config = TransferConfig(max_concurrency=max_concurrency)
-    target = Path(file.local_root).resolve() / file.relative_file
+    target = file.target
     target.parent.mkdir(exist_ok=True, parents=True)
     exception = None
     try:
