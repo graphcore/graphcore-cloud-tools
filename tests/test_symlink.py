@@ -103,7 +103,7 @@ def check_files_are_visible_in_symlink_folder(function_under_test: Callable, sym
 def s3_endpoint_url():
     """Uses moto to start a mocked S3 endpoint on a local port"""
     try:
-        credentials_file = pathlib.Path(os.getenv("HOME","/root")) / ".aws" / "credentials"
+        credentials_file = pathlib.Path(os.getenv("HOME", "/root")) / ".aws" / "credentials"
         if not credentials_file.exists():
             credentials_file.parent.mkdir(parents=True, exist_ok=True)
             credentials_file.write_text(  # fake credential
@@ -201,6 +201,7 @@ def test_fuse_overlay_symlinking(symlink_config):
 
 def test_s3_linking(monkeypatch, s3_datasets, settings_file, symlink_config, caplog):
     caplog.set_level(logging.DEBUG)
+
     def function_under_test():
         config_file, endpoint_url = s3_datasets
         monkeypatch.setenv(symlink_datasets_and_caches.AWS_ENDPOINT_ENV_VAR, endpoint_url)

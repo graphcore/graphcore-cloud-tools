@@ -223,9 +223,11 @@ def apply_symlink(
 ) -> List[GradientDatasetFile]:
     def with_trailing_slash(path):
         return path if path[-1] == "/" else f"{path}/"
+
     source_target = {
         with_trailing_slash(source): with_trailing_slash(target)
-        for target, sources in directory_map.items() for source in sources
+        for target, sources in directory_map.items()
+        for source in sources
     }
     logging.debug(f"Mapping used for symling: {source_target}")
     symlinked_list = []
@@ -236,6 +238,7 @@ def apply_symlink(
                 local_file = local_file.replace(source, new_root)
         symlinked_list.append(file._replace(local_file=local_file))
     return symlinked_list
+
 
 class DownloadOutput(NamedTuple):
     elapsed_seconds: float
