@@ -9,6 +9,7 @@ from moto.server import ThreadedMotoServer
 import boto3
 import subprocess
 import yaml
+import logging
 
 
 @pytest.fixture
@@ -184,7 +185,8 @@ def test_fuse_overlay_symlinking(symlink_config):
     check_files_are_visible_in_symlink_folder(function, symlink_config)
 
 
-def test_s3_linking(monkeypatch, s3_datasets, settings_file, symlink_config):
+def test_s3_linking(monkeypatch, s3_datasets, settings_file, symlink_config, caplog):
+    caplog.set_level(logging.DEBUG)
     def function_under_test():
         config_file, endpoint_url = s3_datasets
         monkeypatch.setenv(symlink_datasets_and_caches.AWS_ENDPOINT_ENV_VAR, endpoint_url)

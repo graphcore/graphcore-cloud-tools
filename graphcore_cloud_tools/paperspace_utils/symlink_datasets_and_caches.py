@@ -250,13 +250,14 @@ def apply_symlink(
         with_trailing_slash(source): with_trailing_slash(target)
         for target, sources in directory_map.items() for source in sources
     }
+    logging.debug(f"Mapping used for symling: {source_target}")
     symlinked_list = []
     for file in list_files:
+        local_file = file.local_file
         for source, new_root in source_target.items():
-            local_file = file.local_file
             if source in local_file:
                 local_file = local_file.replace(source, new_root)
-            symlinked_list.append(file._replace(local_file=local_file))
+        symlinked_list.append(file._replace(local_file=local_file))
     return symlinked_list
 
 class DownloadOutput(NamedTuple):
@@ -269,12 +270,18 @@ def download_file_iterate_endpoints(aws_endpoints: List[str], *args, **kwargs):
     # Randomly shuffles endpoints to load balance
     aws_endpoints = aws_endpoints.copy()
     random.shuffle(aws_endpoints)
+    error_in_loop = None
     for aws_endpoint in aws_endpoints:
         try:
             return download_file(aws_endpoint, *args, **kwargs)
-        except Exception:
+        except Exception as error:
+            error_in_loop = error
             pass
-    raise
+    failure = S3DownloadFailed(f"Unhandled failure during data download from endpoints: {aws_endpoints}")
+    if error_in_loop is None:
+        raise failure
+    else:
+        raise failure from error_in_loop
 
 
 def download_file(
@@ -285,7 +292,7 @@ def download_file(
     print(f"Downloading {progress} {file}")
     start = time.time()
     config = TransferConfig(max_concurrency=max_concurrency)
-    target = file.target
+    target = Path(file.local_file)
     target.parent.mkdir(exist_ok=True, parents=True)
     exception = None
     try:
@@ -330,7 +337,6 @@ def parallel_download_dataset_from_s3(
 
     failed_datasets = []
     for dataset in datasets:
-
         try:
             files_to_download.extend(list_files(s3, dataset))
         except MissingDataset as error:
@@ -339,8 +345,11 @@ def parallel_download_dataset_from_s3(
 
     num_files = len(files_to_download)
     print(f"Downloading {num_files} from {len(datasets)} datasets")
+    logging.debug(f"Files to download: {files_to_download}")
     if symlink:
+        logging.debug(f"Symlink mapping: {directory_map}")
         files_to_download = apply_symlink(files_to_download, directory_map)
+        logging.debug(f"Files to download after symlinking: {files_to_download}")
 
     start = time.time()
     with ProcessPoolExecutor(max_workers=num_concurrent_downloads) as executor:
