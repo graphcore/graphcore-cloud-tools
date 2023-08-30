@@ -29,7 +29,6 @@ def test_symlink_command(symlink_config):
             "symlinks",
             "--config-file",
             f"{symlink_config}",
-            "--gradient-dataset",
         ],
         cwd=str(REPO_ROOT),
     )
@@ -67,6 +66,7 @@ def test_healthcheck_command(tmp_path, settings_file, symlink_config):
             str(settings_file),
             "--symlink-config-file",
             str(symlink_config),
+            "--s3-dataset",
         ],
         cwd=str(REPO_ROOT),
     )
