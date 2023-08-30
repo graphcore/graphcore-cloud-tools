@@ -82,6 +82,7 @@ def create_overlays(source_dirs_exist_paths: List[str], target_dir: str) -> subp
 
 
 def symlink_gradient_datasets(args):
+    """Symlink gradient datasets using fuse-overlayfs"""
     # read in symlink config file
     json_data = Path(args.config_file).read_text()
 
@@ -125,7 +126,7 @@ def symlink_gradient_datasets(args):
         )
 
 
-def get_valid_aws_endpoints(endpoint_fallback=False):
+def get_valid_aws_endpoints(endpoint_fallback=False) -> list[str]:
     # Check which endpoint should be used based on if we can directly access or not
     AWS_ENDPOINT = os.getenv(AWS_ENDPOINT_ENV_VAR, "http://10.12.17.91:8100")
     aws_endpoints = AWS_ENDPOINT.split(";")
@@ -154,7 +155,8 @@ def get_valid_aws_endpoints(endpoint_fallback=False):
     return valid_aws_endpoints
 
 
-def prepare_cred():
+def prepare_cred() -> None:
+    """Decode and write AWS read credential to file"""
     aws_credential = os.getenv(AWS_CREDENTIAL_ENV_VAR)
     read_only = (
         aws_credential
@@ -170,9 +172,13 @@ YWNjZXNzX2tleSA9IExDZENYMEs1aW1USUZRTkVZQzVnY3VkT2prWlFmcHkxZ0p4VjN1RkwK"""
     if "gcdata-r" not in creds_file.read_text():
         with open(creds_file, "ab") as f:
             f.write(cred_bytes)
+        logging.debug(f"Credential 'gcdata-r' written to {creds_file}")
+    else:
+        logging.debug(f"Credential 'gcdata-r' found in credential file: {creds_file}")
 
 
 def encode_cred(plain_text_cred: str) -> str:
+    """Encodes a credential in the way it is expected"""
     return base64.b64encode(plain_text_cred.encode()).decode()
 
 
@@ -207,7 +213,7 @@ class GradientDatasetFile(NamedTuple):
         return [single_entry(c) for c in s3_response["Contents"]]
 
 
-def list_files(client: "boto3.Client", dataset_name: str):
+def list_files(client: "boto3.Client", dataset_name: str) -> list[GradientDatasetFile]:
     dataset_prefix = f"{S3_DATASET_FOLDER}/{dataset_name}/"
     out = client.list_objects_v2(Bucket="sdk", MaxKeys=10000, Prefix=dataset_prefix)
     assert out["ResponseMetadata"].get("HTTPStatusCode", 200) == 200, "Response did not have HTTPS status 200"
@@ -246,7 +252,7 @@ class DownloadOutput(NamedTuple):
     error: Optional[Exception]
 
 
-def download_file_iterate_endpoints(aws_endpoints: List[str], *args, **kwargs):
+def download_file_iterate_endpoints(aws_endpoints: List[str], *args, **kwargs) -> DownloadOutput:
     # Randomly shuffles endpoints to load balance
     aws_endpoints = aws_endpoints.copy()
     random.shuffle(aws_endpoints)
@@ -266,7 +272,7 @@ def download_file_iterate_endpoints(aws_endpoints: List[str], *args, **kwargs):
 
 def download_file(
     aws_endpoint: str, aws_credential, file: GradientDatasetFile, *, max_concurrency, use_cli, progress=""
-):
+) -> DownloadOutput:
     bucket_name = "sdk"
     s3client = boto3.Session(profile_name=aws_credential).client("s3", endpoint_url=aws_endpoint)
     print(f"Downloading {progress} {file}")
@@ -408,7 +414,7 @@ def copy_graphcore_s3(args):
         )
 
 
-def symlink_arguments(parser=argparse.ArgumentParser()):
+def symlink_arguments(parser=argparse.ArgumentParser()) -> ArgumentParser:
 
     parser.add_argument(
         "--s3-dataset", action="store_true", help="Use gradient datasets rather than S3 storage access"
