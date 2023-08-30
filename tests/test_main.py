@@ -49,6 +49,7 @@ def test_s3_symlink_command(settings_file, s3_datasets, monkeypatch):
             f"{config_file}",
             "--gradient-settings-file",
             str(settings_file),
+            "--s3-dataset",
         ],
         cwd=str(REPO_ROOT),
     )
@@ -66,7 +67,6 @@ def test_healthcheck_command(tmp_path, settings_file, symlink_config):
             str(settings_file),
             "--symlink-config-file",
             str(symlink_config),
-            "--s3-dataset",
         ],
         cwd=str(REPO_ROOT),
     )
