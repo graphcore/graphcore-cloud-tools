@@ -159,10 +159,8 @@ def prepare_cred():
     read_only = (
         aws_credential
         if aws_credential
-        else """W2djZGF0YS1yXQphd3NfYWNjZXNzX2tleV9pZCA9IDJaRUFVQllWWThCQVkwODlG
-V0FICmF3c19zZWNyZXRfYWNjZXNzX2tleSA9IDZUbDdIbUh2cFhjdURkRmd5NlBV
-Q0t5bTF0NmlMVVBCWWlZRFYzS2MK
-"""
+        else """W2djZGF0YS1yXQphd3NfYWNjZXNzX2tleV9pZCA9IDc0Q0QwUVVHVkEwUVo3WUZSSlhSCmF3c19zZWNyZXRf
+YWNjZXNzX2tleSA9IExDZENYMEs1aW1USUZRTkVZQzVnY3VkT2prWlFmcHkxZ0p4VjN1RkwK"""
     )
     cred_bytes = base64.b64decode(read_only)
     home = os.getenv("HOME", "/root")
