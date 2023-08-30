@@ -363,9 +363,9 @@ def parallel_download_dataset_from_s3(
         logging.error(f"{len(failed_downloads)}/{len(files_to_download)} files failed to download.")
     errors = {}
     if failed_datasets:
-        errors["datasets"] = failed_datasets
+        errors["missing_datasets"] = failed_datasets
     if failed_downloads:
-        errors["files"] = failed_downloads
+        errors["failed_file_downloads"] = failed_downloads
     return files_to_download, errors
 
 
@@ -404,8 +404,8 @@ def copy_graphcore_s3(args):
     )
     if errors:
         raise RuntimeError(
-            "There were errors during the dataset download from S3, check logs for details.\n"
-            f"Arguments were: {args}\ndatasets: {datasets}\nconfig: {symlink_config}\nerrors: {errors}"
+            "There were errors during the dataset download from S3, check below for details."
+            f"\nerrors: {errors}\nArguments were: {args}\ndatasets: {datasets}\nconfig: {symlink_config}"
         )
 
 
