@@ -20,7 +20,7 @@ import yaml
 
 
 # environment variables which can be used to configure the execution of the program
-DATASET_METHOD_OVERRIDE_ENV_VAR="USE_LEGACY_DATASET_SYMLINK"
+DATASET_METHOD_OVERRIDE_ENV_VAR = "USE_LEGACY_DATASET_SYMLINK"
 FUSEOVERLAY_ROOT_ENV_VAR = "SYMLINK_FUSE_ROOTDIR"  # must be a writeable directory
 S3_DATASETS_DIR_ENV_VAR = "S3_DATASETS_DIR"  # must be a writeable directory with space to download all requested files
 AWS_ENDPOINT_ENV_VAR = "DATASET_S3_DOWNLOAD_ENDPOINT"  # A list of semi-colon separated endpoints to cycle between
