@@ -176,30 +176,6 @@ def encode_cred(plain_text_cred: str) -> str:
     return base64.b64encode(plain_text_cred.encode()).decode()
 
 
-def download_dataset_from_s3(source_dirs_list: List[str]) -> List[str]:
-    aws_endpoints = get_valid_aws_endpoints()
-    aws_credential = "gcdata-r"
-    source_dirs_exist_paths = []
-    for source_dir in source_dirs_list:
-        source_dir_path = Path(source_dir)
-        dataset_name = source_dir_path.name
-        # Cycle through the endpoints if there are errors
-        random.shuffle(aws_endpoints)
-        for aws_endpoint in aws_endpoints:
-            try:
-                cmd = (
-                    f"aws s3 --endpoint-url {aws_endpoint} --profile {aws_credential} "
-                    f"cp s3://sdk/graphcore-gradient-datasets/{dataset_name}"
-                    f" /graphcore-dataset/{dataset_name} --recursive"
-                ).split()
-                subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-                break
-            except Exception:
-                pass
-
-    return source_dirs_exist_paths
-
-
 class GradientDatasetFile(NamedTuple):
     s3file: str
     local_file: str
