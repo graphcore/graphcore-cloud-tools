@@ -33,6 +33,7 @@ def test_symlink_command(symlink_config):
         cwd=str(REPO_ROOT),
     )
 
+
 @pytest.mark.parametrize("legacy", [False, True])
 def test_s3_symlink_command(settings_file, s3_datasets, monkeypatch, legacy):
     """Test the direct S3 overlay method"""
