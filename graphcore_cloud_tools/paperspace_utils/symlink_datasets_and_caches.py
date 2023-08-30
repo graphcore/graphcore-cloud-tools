@@ -416,9 +416,7 @@ def copy_graphcore_s3(args):
 
 def symlink_arguments(parser=argparse.ArgumentParser()) -> ArgumentParser:
 
-    parser.add_argument(
-        "--s3-dataset", action="store_true", help="Use gradient datasets rather than S3 storage access"
-    )
+    parser.add_argument("--s3-dataset", action="store_true", help="Use gradient datasets rather than S3 storage access")
     parser.add_argument("--no-symlink", action="store_false", help="Turn off the symlinking")
     parser.add_argument("--use-cli", action="store_true", help="Use the CLI instead of boto3")
     parser.add_argument(
