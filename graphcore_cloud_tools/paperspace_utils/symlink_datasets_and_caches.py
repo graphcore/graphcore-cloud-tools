@@ -433,14 +433,18 @@ def symlink_arguments(parser=argparse.ArgumentParser()) -> argparse.ArgumentPars
         help="Path to gradient settings.yaml file",
     )
     parser.add_argument("--public-endpoint", action="store_true", help="Use endpoint fallback")
+    parser.add_argument("--disable-legacy-mode", action="store_true", help="block attempts to use legacy mode")
     return parser
 
 
-def handle_legacy_override(args):
+def handle_legacy_override(args: argparse.Namespace) -> argparse.Namespace:
     """The legacy override listens for an environment variable and modifies the arguments passed to
     the method to work with the fuse overlay symlinks"""
     override_method = os.getenv(DATASET_METHOD_OVERRIDE_ENV_VAR)
     if override_method is None:
+        return args
+    if args.disable_legacy_mode:
+        warnings.warn(f"Legacy mode is disabled,  env var {DATASET_METHOD_OVERRIDE_ENV_VAR} with value {override_method} ignored")
         return args
     if override_method != "OVERLAY":
         warnings.warn(f"Unknown symlink override value: {override_method}, falling back on the requested CLI behavior.")
