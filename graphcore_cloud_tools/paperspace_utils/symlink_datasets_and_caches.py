@@ -127,7 +127,7 @@ def symlink_gradient_datasets(args):
 
 def get_valid_aws_endpoints(endpoint_fallback=False):
     # Check which endpoint should be used based on if we can directly access or not
-    AWS_ENDPOINT = os.getenv(AWS_ENDPOINT_ENV_VAR, "http://10.12.17.246:8000")
+    AWS_ENDPOINT = os.getenv(AWS_ENDPOINT_ENV_VAR, "http://10.12.17.91:8100")
     aws_endpoints = AWS_ENDPOINT.split(";")
     valid_aws_endpoints = []
     for aws_endpoint in aws_endpoints:
