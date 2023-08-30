@@ -15,7 +15,8 @@ import warnings
 
 
 @pytest.fixture
-def fake_data(tmp_path: pathlib.Path):
+def fake_data(tmp_path: pathlib.Path, monkeypatch):
+    monkeypatch.setenv(symlink_datasets_and_caches.LEGACY_DATASET_ENV_VAR, str(tmp_path))
     source = tmp_path / "source"
     source2 = tmp_path / "source2"
     source.mkdir(parents=True)

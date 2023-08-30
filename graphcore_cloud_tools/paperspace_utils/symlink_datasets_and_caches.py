@@ -21,8 +21,10 @@ import yaml
 
 # environment variables which can be used to configure the execution of the program
 DATASET_METHOD_OVERRIDE_ENV_VAR = "USE_LEGACY_DATASET_SYMLINK"
+LEGACY_DATASET_ENV_VAR = "PUBLIC_DATASETS_DIR"
 FUSEOVERLAY_ROOT_ENV_VAR = "SYMLINK_FUSE_ROOTDIR"  # must be a writeable directory
 S3_DATASETS_DIR_ENV_VAR = "S3_DATASETS_DIR"  # must be a writeable directory with space to download all requested files
+DEFAULT_S3_DATASET_DIR = "/graphcore-gradient-datasets"
 AWS_ENDPOINT_ENV_VAR = "DATASET_S3_DOWNLOAD_ENDPOINT"  # A list of semi-colon separated endpoints to cycle between
 AWS_CREDENTIAL_ENV_VAR = "DATASET_S3_DOWNLOAD_B64_CREDENTIAL"  # See confluence
 
@@ -192,7 +194,7 @@ class GradientDatasetFile(NamedTuple):
     def from_response(cls, s3_response: dict):
         bucket_name: str = f"s3://{s3_response['Name']}"
         s3_prefix = s3_response["Prefix"]
-        local_root = os.getenv(S3_DATASETS_DIR_ENV_VAR, "/graphcore-gradient-datasets")
+        local_root = os.getenv(S3_DATASETS_DIR_ENV_VAR, DEFAULT_S3_DATASET_DIR)
         for pre in s3_prefix.split("/"):
             if pre not in local_root:
                 local_root = f"{local_root}/{pre}"
@@ -434,25 +436,49 @@ def symlink_arguments(parser=argparse.ArgumentParser()) -> argparse.ArgumentPars
     return parser
 
 
+def handle_legacy_override(args):
+    """The legacy override listens for an environment variable and modifies the arguments passed to
+    the method to work with the fuse overlay symlinks"""
+    override_method = os.getenv(DATASET_METHOD_OVERRIDE_ENV_VAR)
+    if override_method is None:
+        return args
+    if override_method != "OVERLAY":
+        warnings.warn(f"Unknown symlink override value: {override_method}, falling back on the requested CLI behavior.")
+        return args
+    if not args.s3_dataset:
+        # Already in legacy mode, do nothing
+        return args
+
+
+    args.s3_dataset = False
+    legacy_dataset_location = os.getenv(LEGACY_DATASET_ENV_VAR, "/datasets")
+    if not Path(legacy_dataset_location).exists():
+        raise FileNotFoundError(
+            f"Cannot use OVERLAY mode for symlinks, as the {LEGACY_DATASET_ENV_VAR} env"
+            f" var points to non-existant folder: {legacy_dataset_location}"
+        )
+    location_to_override = os.getenv(S3_DATASETS_DIR_ENV_VAR, DEFAULT_S3_DATASET_DIR)
+    os.environ[S3_DATASETS_DIR_ENV_VAR] = legacy_dataset_location
+    config_file = Path(args.config_file).resolve()
+    new_conf_text = config_file.read_text().replace(location_to_override, legacy_dataset_location)
+    new_conf_file = config_file.parent / f"compatibility-{config_file.name}"
+    new_conf_file.write_text(new_conf_text)
+    warnings.warn(
+        "The --s3-dataset was overridden by the environment variable "
+        f"'{DATASET_METHOD_OVERRIDE_ENV_VAR}', overlay based symlinks will be used."
+        f"env var: {S3_DATASETS_DIR_ENV_VAR}, was overridden to '{legacy_dataset_location}'. "
+        f"Config file: {config_file} was modified and rewritten to {new_conf_file}."
+    )
+    args.config_file = str(new_conf_file)
+    return args
+
 def main(args):
     try:
         print("Starting disk usage \n", subprocess.check_output(["df", "-h"]).decode())
     except:
         pass
     print(args)
-    override_method = os.getenv(DATASET_METHOD_OVERRIDE_ENV_VAR)
-    if override_method is None:
-        pass
-    elif override_method == "OVERLAY":
-        if args.s3_dataset:
-            warnings.warn(
-                "The --s3-dataset was overridden by the environment variable "
-                f"'{DATASET_METHOD_OVERRIDE_ENV_VAR}', overlay based symlinks will be used."
-            )
-        args.s3_dataset = False
-    else:
-        warnings.warn(f"Unknown symlink override value: {override_method}, falling back on the requested CLI behavior.")
-
+    args = handle_legacy_override(args)
     if not args.s3_dataset:
         print("Symlinking gradient datasets")
         symlink_gradient_datasets(args)
