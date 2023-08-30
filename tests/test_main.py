@@ -1,7 +1,7 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 import sys
 import pathlib
-import os
+import pytest
 from . import test_symlink
 from . import testutils
 from graphcore_cloud_tools.paperspace_utils import symlink_datasets_and_caches
@@ -33,11 +33,13 @@ def test_symlink_command(symlink_config):
         cwd=str(REPO_ROOT),
     )
 
-
-def test_s3_symlink_command(settings_file, s3_datasets, monkeypatch):
+@pytest.mark.parametrize("legacy", [False, True])
+def test_s3_symlink_command(settings_file, s3_datasets, monkeypatch, legacy):
     """Test the direct S3 overlay method"""
     config_file, endpoint_url = s3_datasets
     monkeypatch.setenv(symlink_datasets_and_caches.AWS_ENDPOINT_ENV_VAR, endpoint_url)
+    if legacy:
+        monkeypatch.setenv(symlink_datasets_and_caches.DATASET_METHOD_OVERRIDE_ENV_VAR, "OVERLAY")
     testutils.run_command_fail_explicitly(
         [
             sys.executable,
