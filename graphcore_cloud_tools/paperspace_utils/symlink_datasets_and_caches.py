@@ -208,12 +208,13 @@ class GradientDatasetFile(NamedTuple):
 
 
 def list_files(client: "boto3.Client", dataset_name: str):
-    dataset_prefix = f"{S3_DATASET_FOLDER}/{dataset_name}"
+    dataset_prefix = f"{S3_DATASET_FOLDER}/{dataset_name}/"
     out = client.list_objects_v2(Bucket="sdk", MaxKeys=10000, Prefix=dataset_prefix)
     assert out["ResponseMetadata"].get("HTTPStatusCode", 200) == 200, "Response did not have HTTPS status 200"
     assert not out["IsTruncated"], "Handling of truncated response is not handled yet"
     if "Contents" not in out:
         raise MissingDataset(f"Dataset '{dataset_name}' not found at 's3://sdk/{dataset_prefix}'")
+    logging.debug(f"S3 response {out}")
     return GradientDatasetFile.from_response(out)
 
 
