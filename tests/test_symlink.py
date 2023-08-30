@@ -100,19 +100,12 @@ def check_files_are_visible_in_symlink_folder(function_under_test: Callable, sym
 
 
 @pytest.fixture
-def s3_endpoint_url():
+def s3_endpoint_url(monkeypatch):
     """Uses moto to start a mocked S3 endpoint on a local port"""
-    try:
-        credentials_file = pathlib.Path(os.getenv("HOME", "/root")) / ".aws" / "credentials"
-        if not credentials_file.exists():
-            credentials_file.parent.mkdir(parents=True, exist_ok=True)
-            credentials_file.write_text(  # fake credential
-                "[default]\n"
-                "aws_access_key_id = 2ZEHJKLOPT8AY089FWAH\n"
-                "aws_secret_access_key = 6Tl7HmHvpUuuUuugy6PUCKym1t6iLUPBYiYDV3Kc\n"
-            )
-    except Exception as error:
-        warnings.warn(f"Credentials file creation failed with error: {type(error)}: {error}")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
+    monkeypatch.setenv("AWS_SECURITY_TOKEN", "testing")
+    monkeypatch.setenv("AWS_SESSION_TOKEN", "testing")
 
     port = 7000
     endpoint_url = f"http://127.0.0.1:{port}"
