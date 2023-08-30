@@ -126,7 +126,7 @@ def symlink_gradient_datasets(args):
         )
 
 
-def get_valid_aws_endpoints(endpoint_fallback=False) -> list[str]:
+def get_valid_aws_endpoints(endpoint_fallback=False) -> List[str]:
     # Check which endpoint should be used based on if we can directly access or not
     AWS_ENDPOINT = os.getenv(AWS_ENDPOINT_ENV_VAR, "http://10.12.17.91:8100")
     aws_endpoints = AWS_ENDPOINT.split(";")
@@ -213,7 +213,7 @@ class GradientDatasetFile(NamedTuple):
         return [single_entry(c) for c in s3_response["Contents"]]
 
 
-def list_files(client: "boto3.Client", dataset_name: str) -> list[GradientDatasetFile]:
+def list_files(client: "boto3.Client", dataset_name: str) -> List[GradientDatasetFile]:
     dataset_prefix = f"{S3_DATASET_FOLDER}/{dataset_name}/"
     out = client.list_objects_v2(Bucket="sdk", MaxKeys=10000, Prefix=dataset_prefix)
     assert out["ResponseMetadata"].get("HTTPStatusCode", 200) == 200, "Response did not have HTTPS status 200"
@@ -414,7 +414,7 @@ def copy_graphcore_s3(args):
         )
 
 
-def symlink_arguments(parser=argparse.ArgumentParser()) -> ArgumentParser:
+def symlink_arguments(parser=argparse.ArgumentParser()) -> argparse.ArgumentParser:
 
     parser.add_argument("--s3-dataset", action="store_true", help="Use gradient datasets rather than S3 storage access")
     parser.add_argument("--no-symlink", action="store_false", help="Turn off the symlinking")
