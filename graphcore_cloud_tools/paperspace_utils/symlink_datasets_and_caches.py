@@ -444,7 +444,9 @@ def handle_legacy_override(args: argparse.Namespace) -> argparse.Namespace:
     if override_method is None:
         return args
     if args.disable_legacy_mode:
-        warnings.warn(f"Legacy mode is disabled,  env var {DATASET_METHOD_OVERRIDE_ENV_VAR} with value {override_method} ignored")
+        warnings.warn(
+            f"Legacy mode is disabled,  env var {DATASET_METHOD_OVERRIDE_ENV_VAR} with value {override_method} ignored"
+        )
         return args
     if override_method != "OVERLAY":
         warnings.warn(f"Unknown symlink override value: {override_method}, falling back on the requested CLI behavior.")
@@ -452,7 +454,6 @@ def handle_legacy_override(args: argparse.Namespace) -> argparse.Namespace:
     if not args.s3_dataset:
         # Already in legacy mode, do nothing
         return args
-
 
     args.s3_dataset = False
     legacy_dataset_location = os.getenv(LEGACY_DATASET_ENV_VAR, "/datasets")
@@ -475,6 +476,7 @@ def handle_legacy_override(args: argparse.Namespace) -> argparse.Namespace:
     )
     args.config_file = str(new_conf_file)
     return args
+
 
 def main(args):
     try:
