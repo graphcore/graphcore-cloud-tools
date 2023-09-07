@@ -267,7 +267,9 @@ def download_file_iterate_endpoints(aws_endpoints: List[str], *args, **kwargs) -
             error_in_loop.append((aws_endpoint, error))
             logging.error("endpoint %s failed with error: %s", aws_endpoint, error)
             pass
-    failure = S3DownloadFailed(f"Unhandled failure during data download from endpoints: {aws_endpoints}. Errors encountered: {error_in_loop}")
+    failure = S3DownloadFailed(
+        f"Unhandled failure during data download from endpoints: {aws_endpoints}. Errors encountered: {error_in_loop}"
+    )
     if error_in_loop is None:
         raise failure
     else:
