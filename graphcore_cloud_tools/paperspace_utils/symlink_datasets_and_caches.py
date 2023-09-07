@@ -26,6 +26,7 @@ FUSEOVERLAY_ROOT_ENV_VAR = "SYMLINK_FUSE_ROOTDIR"  # must be a writeable directo
 S3_DATASETS_DIR_ENV_VAR = "S3_DATASETS_DIR"  # must be a writeable directory with space to download all requested files
 DEFAULT_S3_DATASET_DIR = "/graphcore-gradient-datasets"
 AWS_ENDPOINT_ENV_VAR = "DATASET_S3_DOWNLOAD_ENDPOINT"  # A list of semi-colon separated endpoints to cycle between
+DEFAULT_AWS_ENDPOINT = "http://10.12.17.91:8100"  # The S3 endpoint for Paperspace
 AWS_CREDENTIAL_ENV_VAR = "DATASET_S3_DOWNLOAD_B64_CREDENTIAL"  # See confluence
 
 S3_DATASET_FOLDER = "graphcore-gradient-datasets"
@@ -131,7 +132,7 @@ def symlink_gradient_datasets(args):
 
 def get_valid_aws_endpoints(endpoint_fallback=False) -> List[str]:
     # Check which endpoint should be used based on if we can directly access or not
-    AWS_ENDPOINT = os.getenv(AWS_ENDPOINT_ENV_VAR, "http://10.12.17.91:8100")
+    AWS_ENDPOINT = os.getenv(AWS_ENDPOINT_ENV_VAR, DEFAULT_AWS_ENDPOINT)
     aws_endpoints = AWS_ENDPOINT.split(";")
     valid_aws_endpoints = []
     for aws_endpoint in aws_endpoints:
@@ -204,7 +205,6 @@ class GradientDatasetFile(NamedTuple):
 
         def single_entry(s3_content_response: dict):
             s3_object_name: str = s3_content_response["Key"]
-            full_s3file = f"{bucket_name}{s3_object_name}"
             relative_file = s3_object_name.replace(s3_prefix, "").strip("/")
             target = Path(local_root).resolve() / relative_file
             return cls(
@@ -259,18 +259,19 @@ def download_file_iterate_endpoints(aws_endpoints: List[str], *args, **kwargs) -
     # Randomly shuffles endpoints to load balance
     aws_endpoints = aws_endpoints.copy()
     random.shuffle(aws_endpoints)
-    error_in_loop = None
+    error_in_loop = []
     for aws_endpoint in aws_endpoints:
         try:
             return download_file(aws_endpoint, *args, **kwargs)
         except Exception as error:
-            error_in_loop = error
+            error_in_loop.append((aws_endpoint, error))
+            logging.error("endpoint %s failed with error: %s", aws_endpoint, error)
             pass
-    failure = S3DownloadFailed(f"Unhandled failure during data download from endpoints: {aws_endpoints}")
+    failure = S3DownloadFailed(f"Unhandled failure during data download from endpoints: {aws_endpoints}. Errors encountered: {error_in_loop}")
     if error_in_loop is None:
         raise failure
     else:
-        raise failure from error_in_loop
+        raise failure from error_in_loop[0][1]
 
 
 def download_file(
@@ -402,12 +403,12 @@ def copy_graphcore_s3(args):
     symlink_config = json.loads(json_data)
     datasets = read_gradient_settings(args.gradient_settings_file)
     prepare_cred()
-    source_dirs_exist_paths, errors = parallel_download_dataset_from_s3(
+    _, errors = parallel_download_dataset_from_s3(
         datasets,
         symlink_config,
         max_concurrency=args.max_concurrency,
         num_concurrent_downloads=args.num_concurrent_downloads,
-        symlink=args.no_symlink,
+        symlink=not args.no_symlink,
         endpoint_fallback=args.public_endpoint,
     )
     if errors:
@@ -420,7 +421,7 @@ def copy_graphcore_s3(args):
 def symlink_arguments(parser=argparse.ArgumentParser()) -> argparse.ArgumentParser:
 
     parser.add_argument("--s3-dataset", action="store_true", help="Use gradient datasets rather than S3 storage access")
-    parser.add_argument("--no-symlink", action="store_false", help="Turn off the symlinking")
+    parser.add_argument("--no-symlink", action="store_true", help="Turn off the symlinking")
     parser.add_argument("--use-cli", action="store_true", help="Use the CLI instead of boto3")
     parser.add_argument(
         "--num-concurrent-downloads", default=1, type=int, help="Number of concurrent files to download"

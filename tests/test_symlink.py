@@ -111,7 +111,6 @@ def s3_endpoint_url(monkeypatch):
     port = 7000
     endpoint_url = f"http://127.0.0.1:{port}"
     started_server = False
-    i = 0
     # try ports from 7000 to 8000 for a valid one
     # Finds an open port to start the server on
     for i in range(1000):
@@ -159,7 +158,6 @@ def s3_datasets(symlink_config: pathlib.Path, s3_endpoint_url: str):
 
     symlink_def: Dict[str, List[str]] = json.loads(symlink_config.read_text())
     new_symlink_def = {}
-    sources = [pathlib.Path(source) for sources in symlink_def.values() for source in sources]
     # Upload files
     for key, sources in symlink_def.items():
         new_symlink_def[key] = []
