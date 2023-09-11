@@ -18,6 +18,8 @@ import argparse
 import logging
 import yaml
 
+from .auth import AWS_CREDENTIAL_ENV_VAR, DEFAULT_S3_CREDENTIAL
+
 
 # environment variables which can be used to configure the execution of the program
 DATASET_METHOD_OVERRIDE_ENV_VAR = "USE_LEGACY_DATASET_SYMLINK"
@@ -27,7 +29,6 @@ S3_DATASETS_DIR_ENV_VAR = "S3_DATASETS_DIR"  # must be a writeable directory wit
 DEFAULT_S3_DATASET_DIR = "/graphcore-gradient-datasets"
 AWS_ENDPOINT_ENV_VAR = "DATASET_S3_DOWNLOAD_ENDPOINT"  # A list of semi-colon separated endpoints to cycle between
 DEFAULT_AWS_ENDPOINT = "http://10.12.17.91:8100"  # The S3 endpoint for Paperspace
-AWS_CREDENTIAL_ENV_VAR = "DATASET_S3_DOWNLOAD_B64_CREDENTIAL"  # See confluence
 
 S3_DATASET_FOLDER = "graphcore-gradient-datasets"
 
@@ -162,12 +163,7 @@ def get_valid_aws_endpoints(endpoint_fallback=False) -> List[str]:
 def prepare_cred() -> None:
     """Decode and write AWS read credential to file"""
     aws_credential = os.getenv(AWS_CREDENTIAL_ENV_VAR)
-    read_only = (
-        aws_credential
-        if aws_credential
-        else """W2djZGF0YS1yXQphd3NfYWNjZXNzX2tleV9pZCA9IDc0Q0QwUVVHVkEwUVo3WUZSSlhSCmF3c19zZWNyZXRf
-YWNjZXNzX2tleSA9IExDZENYMEs1aW1USUZRTkVZQzVnY3VkT2prWlFmcHkxZ0p4VjN1RkwK"""
-    )
+    read_only = aws_credential if aws_credential else DEFAULT_S3_CREDENTIAL
     cred_bytes = base64.b64decode(read_only)
     home = os.getenv("HOME", "/root")
     creds_file = Path(f"{home}/.aws/credentials")
