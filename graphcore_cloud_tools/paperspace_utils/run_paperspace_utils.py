@@ -1,7 +1,7 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 import argparse
 
-from .symlink_datasets_and_caches import run_symlinks, parse_symlinks_args
+from . import symlink_datasets_and_caches
 from .health_check import run_health_check
 
 
@@ -9,7 +9,7 @@ def paperspace_parser(parser: argparse.ArgumentParser):
     """Add paperspace arguments to argparse parser"""
     subparsers = parser.add_subparsers(dest="option")
     symlinks_subparser = subparsers.add_parser("symlinks")
-    parse_symlinks_args(symlinks_subparser)
+    symlink_datasets_and_caches.symlink_arguments(symlinks_subparser)
 
 
 def run_paperspace(args: argparse.Namespace):
@@ -21,13 +21,12 @@ def run_paperspace(args: argparse.Namespace):
 
     """
     if args.option == "symlinks":
-        run_symlinks(args)
+        symlink_datasets_and_caches.main(args)
     elif args.option == "health_check":
         run_health_check(args)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    paperspace_parser(parser)
-    args = parser.parse_args()
+
+    args = symlink_datasets_and_caches.symlink_arguments().parse_args()
     run_paperspace(args)
