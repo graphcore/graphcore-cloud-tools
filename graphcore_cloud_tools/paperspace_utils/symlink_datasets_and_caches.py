@@ -332,7 +332,7 @@ def parallel_download_dataset_from_s3(
             failed_datasets.append(dataset)
 
     num_files = len(files_to_download)
-    print(f"Downloading {num_files} from {len(datasets)} datasets")
+    print(f"Downloading {num_files} files from {len(datasets)} datasets")
     logging.debug(f"Files to download: {files_to_download}")
     if symlink:
         logging.debug(f"Symlink mapping: {directory_map}")
