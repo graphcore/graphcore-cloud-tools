@@ -313,6 +313,7 @@ def parallel_download_dataset_from_s3(
     symlink=True,
     use_cli=False,
     endpoint_fallback=False,
+    failed_files: List[GradientDatasetFile]=None,
 ) -> Tuple[List[GradientDatasetFile], Dict[str, List[str]]]:
     aws_credential = "gcdata-r"
     aws_endpoints = get_valid_aws_endpoints(endpoint_fallback)
@@ -321,23 +322,29 @@ def parallel_download_dataset_from_s3(
 
     # Disable thread use/transfer concurrency
 
-    files_to_download: List[GradientDatasetFile] = []
+    if failed_files:
+        # reattempt to download failed files
+        files_to_download = failed_files
+        failed_datasets = []
+        print(f"Retrying download of {len(files_to_download)} failed files: {files_to_download}")
+    else:
+        files_to_download: List[GradientDatasetFile] = []
 
-    failed_datasets = []
-    for dataset in datasets:
-        try:
-            files_to_download.extend(list_files(s3, dataset))
-        except MissingDataset as error:
-            logging.error(f"{dataset} is missing - skipping download. Error: {error}")
-            failed_datasets.append(dataset)
+        failed_datasets = []
+        for dataset in datasets:
+            try:
+                files_to_download.extend(list_files(s3, dataset))
+            except MissingDataset as error:
+                logging.error(f"{dataset} is missing - skipping download. Error: {error}")
+                failed_datasets.append(dataset)
 
-    num_files = len(files_to_download)
-    print(f"Downloading {num_files} files from {len(datasets)} datasets")
-    logging.debug(f"Files to download: {files_to_download}")
-    if symlink:
-        logging.debug(f"Symlink mapping: {directory_map}")
-        files_to_download = apply_symlink(files_to_download, directory_map)
-        logging.debug(f"Files to download after symlinking: {files_to_download}")
+        num_files = len(files_to_download)
+        print(f"Downloading {num_files} files from {len(datasets)} datasets")
+        logging.debug(f"Files to download: {files_to_download}")
+        if symlink:
+            logging.debug(f"Symlink mapping: {directory_map}")
+            files_to_download = apply_symlink(files_to_download, directory_map)
+            logging.debug(f"Files to download after symlinking: {files_to_download}")
 
     start = time.time()
     with ProcessPoolExecutor(max_workers=num_concurrent_downloads) as executor:
@@ -355,11 +362,13 @@ def parallel_download_dataset_from_s3(
         ]
 
     failed_downloads = []
+    failed_files = []
     for file, future_result in zip(files_to_download, outputs):
         result = future_result.result()
         if result.error is not None:
             failed_downloads.append(f"{file} failed to download with {result.error}")
             logging.error(failed_downloads[-1])
+            failed_files.append(file)
     total_elapsed = time.time() - start
     total_download_size = sum(o.result().gigabytes for o in outputs)
     if not failed_downloads:
@@ -373,7 +382,7 @@ def parallel_download_dataset_from_s3(
         errors["missing_datasets"] = failed_datasets
     if failed_downloads:
         errors["failed_file_downloads"] = failed_downloads
-    return files_to_download, errors
+    return files_to_download, errors, failed_files
 
 
 def read_gradient_settings(gradient_settings_file: Path) -> List[str]:
@@ -401,18 +410,50 @@ def copy_graphcore_s3(args):
     symlink_config = json.loads(json_data)
     datasets = read_gradient_settings(args.gradient_settings_file)
     prepare_cred()
-    _, errors = parallel_download_dataset_from_s3(
-        datasets,
-        symlink_config,
-        max_concurrency=args.max_concurrency,
-        num_concurrent_downloads=args.num_concurrent_downloads,
-        symlink=not args.no_symlink,
-        endpoint_fallback=args.public_endpoint,
-    )
-    if errors:
+
+    max_retries = args.max_retries
+    failed_files = []
+    all_attempts_errors = {}
+
+    for attempt in range(1 + max_retries): # Including the initial attempt
+        _, errors, failed_files = parallel_download_dataset_from_s3(
+            datasets,
+            symlink_config,
+            max_concurrency=args.max_concurrency,
+            num_concurrent_downloads=args.num_concurrent_downloads,
+            symlink=not args.no_symlink,
+            endpoint_fallback=args.public_endpoint,
+            failed_files=failed_files
+        )
+
+        if errors:
+            # add and label errors from different attempts
+            if attempt == 0:
+                all_attempts_errors = errors
+            else:
+                key_suffix = f"_retry_{attempt}" 
+                for key, value in errors.items():
+                    all_attempts_errors[f"{key}{key_suffix}"] = value
+
+            if failed_files:
+                # retry download failed files
+                if attempt < max_retries:
+                    print(f"Retry attempt {attempt+1}/{max_retries}: Retrying download for {len(failed_files)} failed files...") 
+                else:
+                    print(f"All {max_retries} retries exhausted. Failed to download {len(failed_files)} files.")
+            else:
+                # hit a different error, needs special addressing, not necessarily retry download. raise error below.
+                break
+        else:
+            # Successful download. Remove any "failed files" errors from previous unsuccessful attempts.
+            # There may still be other errors like missing datasets that will be raised
+            if any(key.startswith("failed_file_downloads") for key in all_attempts_errors):
+                all_attempts_errors = {key: value for key, value in all_attempts_errors.items() if not key.startswith("failed_file_downloads")}
+            break
+    if all_attempts_errors:
         raise RuntimeError(
             "There were errors during the dataset download from S3, check below for details."
-            f"\nerrors: {errors}\nArguments were: {args}\ndatasets: {datasets}\nconfig: {symlink_config}"
+            f"\nerrors: {all_attempts_errors}\nArguments were: {args}\ndatasets: {datasets}\nconfig: {symlink_config}"
         )
 
 
@@ -431,6 +472,7 @@ def symlink_arguments(parser=argparse.ArgumentParser()) -> argparse.ArgumentPars
         default=str(Path(".").resolve().parent / "settings.yaml"),
         help="Path to gradient settings.yaml file",
     )
+    parser.add_argument("--max-retries", default=1, type=int, help="Maximum number of download retries in case of failures")
     parser.add_argument("--public-endpoint", action="store_true", help="Use endpoint fallback")
     parser.add_argument("--disable-legacy-mode", action="store_true", help="block attempts to use legacy mode")
     return parser
