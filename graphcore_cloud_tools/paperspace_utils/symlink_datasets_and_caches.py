@@ -313,7 +313,7 @@ def parallel_download_dataset_from_s3(
     symlink=True,
     use_cli=False,
     endpoint_fallback=False,
-    failed_files: List[GradientDatasetFile]=None,
+    failed_files: List[GradientDatasetFile] = None,
 ) -> Tuple[List[GradientDatasetFile], Dict[str, List[str]]]:
     aws_credential = "gcdata-r"
     aws_endpoints = get_valid_aws_endpoints(endpoint_fallback)
@@ -415,7 +415,7 @@ def copy_graphcore_s3(args):
     failed_files = []
     all_attempts_errors = {}
 
-    for attempt in range(1 + max_retries): # Including the initial attempt
+    for attempt in range(1 + max_retries):  # Including the initial attempt
         _, errors, failed_files = parallel_download_dataset_from_s3(
             datasets,
             symlink_config,
@@ -423,7 +423,7 @@ def copy_graphcore_s3(args):
             num_concurrent_downloads=args.num_concurrent_downloads,
             symlink=not args.no_symlink,
             endpoint_fallback=args.public_endpoint,
-            failed_files=failed_files
+            failed_files=failed_files,
         )
 
         #RRR testing - to be removed
@@ -443,14 +443,16 @@ def copy_graphcore_s3(args):
             if attempt == 0:
                 all_attempts_errors = errors
             else:
-                key_suffix = f"_retry_{attempt}" 
+                key_suffix = f"_retry_{attempt}"
                 for key, value in errors.items():
                     all_attempts_errors[f"{key}{key_suffix}"] = value
 
             if failed_files:
                 # retry download failed files
                 if attempt < max_retries:
-                    print(f"Retry attempt {attempt+1}/{max_retries}: Retrying download for {len(failed_files)} failed files...") 
+                    print(
+                        f"Retry attempt {attempt+1}/{max_retries}: Retrying download for {len(failed_files)} failed files..."
+                    )
                 else:
                     print(f"All {max_retries} retries exhausted. Failed to download {len(failed_files)} files.")
             else:
@@ -460,7 +462,11 @@ def copy_graphcore_s3(args):
             # Successful download. Remove any "failed files" errors from previous unsuccessful attempts.
             # There may still be other errors like missing datasets that will be raised
             if any(key.startswith("failed_file_downloads") for key in all_attempts_errors):
-                all_attempts_errors = {key: value for key, value in all_attempts_errors.items() if not key.startswith("failed_file_downloads")}
+                all_attempts_errors = {
+                    key: value
+                    for key, value in all_attempts_errors.items()
+                    if not key.startswith("failed_file_downloads")
+                }
             break
     if all_attempts_errors:
         raise RuntimeError(
@@ -484,7 +490,9 @@ def symlink_arguments(parser=argparse.ArgumentParser()) -> argparse.ArgumentPars
         default=str(Path(".").resolve().parent / "settings.yaml"),
         help="Path to gradient settings.yaml file",
     )
-    parser.add_argument("--max-retries", default=1, type=int, help="Maximum number of download retries in case of failures")
+    parser.add_argument(
+        "--max-retries", default=1, type=int, help="Maximum number of download retries in case of failures"
+    )
     parser.add_argument("--public-endpoint", action="store_true", help="Use endpoint fallback")
     parser.add_argument("--disable-legacy-mode", action="store_true", help="block attempts to use legacy mode")
     return parser
