@@ -431,7 +431,7 @@ def copy_graphcore_s3(args):
             errors = {"failed_file_downloads":["rrr"]}
             local_file = '/tmp/exe_cache/3.3.0/kge_training/4253143966390608402.popef'
             assert os.path.isfile(local_file)
-
+            os.remove(local_file)
             failed_files = [GradientDatasetFile(s3file='graphcore-gradient-datasets/poplar-executables-pytorch-3-3/3.3.0/kge_training/4253143966390608402.popef', local_file=local_file, size=4399398296)]
         else:
             assert os.path.isfile(local_file)
