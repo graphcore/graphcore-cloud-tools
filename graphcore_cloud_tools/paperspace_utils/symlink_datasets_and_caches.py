@@ -326,7 +326,8 @@ def parallel_download_dataset_from_s3(
         # reattempt to download failed files
         files_to_download = failed_files
         failed_datasets = []
-        print(f"Retrying download of {len(files_to_download)} failed files: {files_to_download}")
+        num_files = len(files_to_download)
+        print(f"Retrying download of {num_files} failed files: {files_to_download}")
     else:
         files_to_download: List[GradientDatasetFile] = []
 
