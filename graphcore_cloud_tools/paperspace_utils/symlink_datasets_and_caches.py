@@ -490,7 +490,7 @@ def symlink_arguments(parser=argparse.ArgumentParser()) -> argparse.ArgumentPars
         help="Path to gradient settings.yaml file",
     )
     parser.add_argument(
-        "--max-retries", default=1, type=int, help="Maximum number of download retries in case of failures"
+        "--max-retries", default=1, type=int, help="Maximum number of s3 download retries in case of failures"
     )
     parser.add_argument("--public-endpoint", action="store_true", help="Use endpoint fallback")
     parser.add_argument("--disable-legacy-mode", action="store_true", help="block attempts to use legacy mode")
