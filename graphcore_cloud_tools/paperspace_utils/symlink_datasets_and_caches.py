@@ -305,9 +305,9 @@ def download_file(
             exceptions.append(error)
             if attempt + 1 < max_attempts:
                 print(f"Failed to download file {file}. Retrying - attempt {attempt+2}/{max_attempts}...")
+                time.sleep(1)
             else: 
                 print(f"All {max_attempts} attempts exhausted - failed to download file {file}.")
-            time.sleep(1)
     elapsed = time.time() - start
     size_gb = file.size / (1024**3)
     print(f"Finished {progress}: {size_gb:.2f}GB in {elapsed:.0f}s ({size_gb/elapsed:.3f} GB/s) for file {target}")
