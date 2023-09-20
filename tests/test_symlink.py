@@ -209,5 +209,5 @@ def test_s3_linking(monkeypatch, s3_datasets, settings_file, symlink_config, cap
             endpoint_fallback=False,
         )
 
-    source_dirs_exist_paths, errors, failed_files = check_files_are_visible_in_symlink_folder(function_under_test, symlink_config)
+    source_dirs_exist_paths, errors = check_files_are_visible_in_symlink_folder(function_under_test, symlink_config)
     assert not errors
