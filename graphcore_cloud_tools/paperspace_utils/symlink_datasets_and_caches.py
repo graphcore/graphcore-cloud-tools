@@ -305,15 +305,15 @@ def download_file(
                 out = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
                 if out.returncode != 0:
                     raise S3DownloadFailed(f"Command {cmd} failed with return code {out.returncode}")
-            #RRR testing - to be removed
-            if file.local_file == '/tmp/exe_cache/3.3.0/kge_training/4253143966390608402.popef':
+            # RRR testing - to be removed
+            if file.local_file == "/tmp/exe_cache/3.3.0/kge_training/4253143966390608402.popef":
                 # if attempt == 0:
                 assert os.path.isfile(file.local_file)
                 os.remove(file.local_file)
                 raise Exception
                 # else:
                 #     assert os.path.isfile(file.local_file)
-            #RRR testing end
+            # RRR testing end
             # successful download - clear failed errors from previous attempts and break
             exceptions = []
             break
