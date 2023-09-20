@@ -273,7 +273,14 @@ def download_file_iterate_endpoints(aws_endpoints: List[str], *args, **kwargs) -
 
 
 def download_file(
-    aws_endpoint: str, aws_credential, file: GradientDatasetFile, *, max_concurrency, use_cli, progress="", max_attempts=2
+    aws_endpoint: str,
+    aws_credential,
+    file: GradientDatasetFile,
+    *,
+    max_concurrency,
+    use_cli,
+    progress="",
+    max_attempts=2,
 ) -> DownloadOutput:
     bucket_name = "sdk"
     s3client = boto3.Session(profile_name=aws_credential).client("s3", endpoint_url=aws_endpoint)
@@ -298,7 +305,7 @@ def download_file(
                 out = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
                 if out.returncode != 0:
                     raise S3DownloadFailed(f"Command {cmd} failed with return code {out.returncode}")
-            #successful download - clear failed errors from previous attempts and break
+            # successful download - clear failed errors from previous attempts and break
             exceptions = []
             break
         except Exception as error:
@@ -306,7 +313,7 @@ def download_file(
             if attempt + 1 < max_attempts:
                 print(f"Failed to download file {file}. Retrying - attempt {attempt+2}/{max_attempts}...")
                 time.sleep(1)
-            else: 
+            else:
                 print(f"All {max_attempts} attempts exhausted - failed to download file {file}.")
     elapsed = time.time() - start
     size_gb = file.size / (1024**3)
@@ -424,9 +431,9 @@ def copy_graphcore_s3(args):
     )
     if errors:
         raise RuntimeError(
-                "There were errors during the dataset download from S3, check below for details."
-                f"\nerrors: {errors}\nArguments were: {args}\ndatasets: {datasets}\nconfig: {symlink_config}"
-            )
+            "There were errors during the dataset download from S3, check below for details."
+            f"\nerrors: {errors}\nArguments were: {args}\ndatasets: {datasets}\nconfig: {symlink_config}"
+        )
 
 
 def symlink_arguments(parser=argparse.ArgumentParser()) -> argparse.ArgumentParser:
@@ -444,9 +451,7 @@ def symlink_arguments(parser=argparse.ArgumentParser()) -> argparse.ArgumentPars
         default=str(Path(".").resolve().parent / "settings.yaml"),
         help="Path to gradient settings.yaml file",
     )
-    parser.add_argument(
-        "--max-attempts", default=2, type=int, help="Maximum number of s3 download attempts per file"
-    )
+    parser.add_argument("--max-attempts", default=2, type=int, help="Maximum number of s3 download attempts per file")
     parser.add_argument("--public-endpoint", action="store_true", help="Use endpoint fallback")
     parser.add_argument("--disable-legacy-mode", action="store_true", help="block attempts to use legacy mode")
     return parser
