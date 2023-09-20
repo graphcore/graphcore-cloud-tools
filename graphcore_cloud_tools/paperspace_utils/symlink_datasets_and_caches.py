@@ -291,7 +291,7 @@ def download_file(
     target.parent.mkdir(exist_ok=True, parents=True)
     exceptions = []
 
-    for attempt in max_attempts:
+    for attempt in range(max_attempts):
         try:
             if not use_cli:
                 s3client.download_file(bucket_name, file.s3file, str(target), Config=config)
