@@ -248,7 +248,7 @@ def apply_symlink(
 class DownloadOutput(NamedTuple):
     elapsed_seconds: float
     gigabytes: float
-    error: Optional[Exception]
+    errors: Optional[List[Exception]]
 
 
 def download_file_iterate_endpoints(aws_endpoints: List[str], *args, **kwargs) -> DownloadOutput:
@@ -273,7 +273,14 @@ def download_file_iterate_endpoints(aws_endpoints: List[str], *args, **kwargs) -
 
 
 def download_file(
-    aws_endpoint: str, aws_credential, file: GradientDatasetFile, *, max_concurrency, use_cli, progress=""
+    aws_endpoint: str,
+    aws_credential,
+    file: GradientDatasetFile,
+    *,
+    max_concurrency,
+    use_cli,
+    progress="",
+    max_attempts=2,
 ) -> DownloadOutput:
     bucket_name = "sdk"
     s3client = boto3.Session(profile_name=aws_credential).client("s3", endpoint_url=aws_endpoint)
@@ -282,26 +289,45 @@ def download_file(
     config = TransferConfig(max_concurrency=max_concurrency)
     target = Path(file.local_file)
     target.parent.mkdir(exist_ok=True, parents=True)
-    exception = None
-    try:
-        if not use_cli:
-            s3client.download_file(bucket_name, file.s3file, str(target), Config=config)
-        else:
-            cmd = (
-                f"aws s3 --endpoint-url {aws_endpoint} --profile {aws_credential} "
-                f"cp s3://{bucket_name}/{file.s3file}"
-                f" {target}"
-            ).split()
-            print(cmd)
-            out = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-            if out.returncode != 0:
-                raise S3DownloadFailed(f"Command {cmd} failed with return code {out.returncode}")
-    except Exception as error:
-        exception = error
+    exceptions = []
+
+    for attempt in range(max_attempts):
+        try:
+            if not use_cli:
+                s3client.download_file(bucket_name, file.s3file, str(target), Config=config)
+            else:
+                cmd = (
+                    f"aws s3 --endpoint-url {aws_endpoint} --profile {aws_credential} "
+                    f"cp s3://{bucket_name}/{file.s3file}"
+                    f" {target}"
+                ).split()
+                print(cmd)
+                out = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                if out.returncode != 0:
+                    raise S3DownloadFailed(f"Command {cmd} failed with return code {out.returncode}")
+            # successful download - clear failed errors from previous attempts and break
+            if attempt > 0:
+                # Only print on multiple attempts to not clutter the log.
+                print(
+                    f"Successfully downloaded file {file} after multiple attempts, on attempt nr {attempt+1}/{max_attempts}"
+                )
+            exceptions = []
+            break
+        except Exception as error:
+            print(
+                f"[WARNING] Failed to download file {file} on attempt {attempt+1}/{max_attempts} with error: {type(error).__name__} {error}."
+            )
+            exceptions.append(error)
+            if attempt + 1 < max_attempts:
+                print(f"Retrying download of file {file} - attempt {attempt+2}/{max_attempts}...")
+                time.sleep(1)
+            else:
+                print(f"All {max_attempts} attempts exhausted - failed to download file {file}.")
     elapsed = time.time() - start
     size_gb = file.size / (1024**3)
-    print(f"Finished {progress}: {size_gb:.2f}GB in {elapsed:.0f}s ({size_gb/elapsed:.3f} GB/s) for file {target}")
-    return DownloadOutput(elapsed, size_gb, exception)
+    if not exceptions:
+        print(f"Finished {progress}: {size_gb:.2f}GB in {elapsed:.0f}s ({size_gb/elapsed:.3f} GB/s) for file {target}")
+    return DownloadOutput(elapsed, size_gb, exceptions)
 
 
 def parallel_download_dataset_from_s3(
@@ -313,6 +339,7 @@ def parallel_download_dataset_from_s3(
     symlink=True,
     use_cli=False,
     endpoint_fallback=False,
+    max_attempts=2,
 ) -> Tuple[List[GradientDatasetFile], Dict[str, List[str]]]:
     aws_credential = "gcdata-r"
     aws_endpoints = get_valid_aws_endpoints(endpoint_fallback)
@@ -350,6 +377,7 @@ def parallel_download_dataset_from_s3(
                 max_concurrency=max_concurrency,
                 use_cli=use_cli,
                 progress=f"{i+1}/{num_files}",
+                max_attempts=max_attempts,
             )
             for i, file in enumerate(files_to_download)
         ]
@@ -357,8 +385,8 @@ def parallel_download_dataset_from_s3(
     failed_downloads = []
     for file, future_result in zip(files_to_download, outputs):
         result = future_result.result()
-        if result.error is not None:
-            failed_downloads.append(f"{file} failed to download with {result.error}")
+        if result.errors:
+            failed_downloads.append(f"{file} failed to download in {max_attempts} attempts with errors {result.errors}")
             logging.error(failed_downloads[-1])
     total_elapsed = time.time() - start
     total_download_size = sum(o.result().gigabytes for o in outputs)
@@ -408,6 +436,7 @@ def copy_graphcore_s3(args):
         num_concurrent_downloads=args.num_concurrent_downloads,
         symlink=not args.no_symlink,
         endpoint_fallback=args.public_endpoint,
+        max_attempts=args.max_attempts,
     )
     if errors:
         raise RuntimeError(
@@ -431,6 +460,7 @@ def symlink_arguments(parser=argparse.ArgumentParser()) -> argparse.ArgumentPars
         default=str(Path(".").resolve().parent / "settings.yaml"),
         help="Path to gradient settings.yaml file",
     )
+    parser.add_argument("--max-attempts", default=2, type=int, help="Maximum number of s3 download attempts per file")
     parser.add_argument("--public-endpoint", action="store_true", help="Use endpoint fallback")
     parser.add_argument("--disable-legacy-mode", action="store_true", help="block attempts to use legacy mode")
     return parser
