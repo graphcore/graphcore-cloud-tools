@@ -306,18 +306,23 @@ def download_file(
                 if out.returncode != 0:
                     raise S3DownloadFailed(f"Command {cmd} failed with return code {out.returncode}")
             # successful download - clear failed errors from previous attempts and break
+            if attempt > 0:
+                # Only print on multiple attempts to not clutter the log. 
+                print(f"Successfully downloaded file {file} after multiple attempts, on attempt nr {attempt+1}/{max_attempts}")
             exceptions = []
             break
         except Exception as error:
+            print(f"[WARNING] Failed to download file {file} on attempt {attempt+1}/{max_attempts} with error: {type(error).__name__} {error}.")
             exceptions.append(error)
             if attempt + 1 < max_attempts:
-                print(f"Failed to download file {file}. Retrying - attempt {attempt+2}/{max_attempts}...")
+                print(f"Retrying download of file {file} - attempt {attempt+2}/{max_attempts}...")
                 time.sleep(1)
             else:
                 print(f"All {max_attempts} attempts exhausted - failed to download file {file}.")
     elapsed = time.time() - start
     size_gb = file.size / (1024**3)
-    print(f"Finished {progress}: {size_gb:.2f}GB in {elapsed:.0f}s ({size_gb/elapsed:.3f} GB/s) for file {target}")
+    if not exceptions:
+        print(f"Finished {progress}: {size_gb:.2f}GB in {elapsed:.0f}s ({size_gb/elapsed:.3f} GB/s) for file {target}")
     return DownloadOutput(elapsed, size_gb, exceptions)
 
 

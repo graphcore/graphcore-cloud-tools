@@ -211,3 +211,29 @@ def test_s3_linking(monkeypatch, s3_datasets, settings_file, symlink_config, cap
 
     source_dirs_exist_paths, errors = check_files_are_visible_in_symlink_folder(function_under_test, symlink_config)
     assert not errors
+
+def test_s3_retry_download(monkeypatch, s3_datasets):
+    config_file, endpoint_url = s3_datasets
+    monkeypatch.setenv(symlink_datasets_and_caches.AWS_ENDPOINT_ENV_VAR, endpoint_url)
+    symlink_datasets_and_caches.prepare_cred()
+
+    config = json.loads(config_file.read_text())
+    target_folder = next(iter(config))
+    nonexistent_target = f"{target_folder}/nonexistent.txt"
+    source_folder = config[target_folder][0]
+    nonexistent_source = f"{source_folder}/nonexistent.txt"
+    nonexistent_file = symlink_datasets_and_caches.GradientDatasetFile(
+        s3file=nonexistent_source, 
+        local_file=nonexistent_target
+    )
+    
+    aws_endpoint=symlink_datasets_and_caches.get_valid_aws_endpoints()[0]
+    max_attempts=2
+    out = symlink_datasets_and_caches.download_file(aws_endpoint, 
+                                                    aws_credential="gcdata-r", 
+                                                    file=nonexistent_file, 
+                                                    max_concurrency=1,
+                                                    use_cli=False,
+                                                    progress="1/1",
+                                                    max_attempts=max_attempts)
+    assert len(out.errors) == max_attempts
