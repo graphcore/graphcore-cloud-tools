@@ -307,12 +307,16 @@ def download_file(
                     raise S3DownloadFailed(f"Command {cmd} failed with return code {out.returncode}")
             # successful download - clear failed errors from previous attempts and break
             if attempt > 0:
-                # Only print on multiple attempts to not clutter the log. 
-                print(f"Successfully downloaded file {file} after multiple attempts, on attempt nr {attempt+1}/{max_attempts}")
+                # Only print on multiple attempts to not clutter the log.
+                print(
+                    f"Successfully downloaded file {file} after multiple attempts, on attempt nr {attempt+1}/{max_attempts}"
+                )
             exceptions = []
             break
         except Exception as error:
-            print(f"[WARNING] Failed to download file {file} on attempt {attempt+1}/{max_attempts} with error: {type(error).__name__} {error}.")
+            print(
+                f"[WARNING] Failed to download file {file} on attempt {attempt+1}/{max_attempts} with error: {type(error).__name__} {error}."
+            )
             exceptions.append(error)
             if attempt + 1 < max_attempts:
                 print(f"Retrying download of file {file} - attempt {attempt+2}/{max_attempts}...")
